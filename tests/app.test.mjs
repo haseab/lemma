@@ -29,7 +29,7 @@ test('bundled renderer boots, searches, replaces, imports source, saves history 
  app.$('#find-open').click();app.$('#find-query').value='Example';app.$('#find-query').dispatchEvent(new Event('input'));assert.equal(app.$('#find-count').textContent,'2 matches');
  app.$('#replace-value').value='Clear';app.$('#replace-all').click();await wait(35);assert.match(app.$('#math-page').value,/Clear note/);
  app.$('#find-close').click();app.$('#undo').click();assert.match(app.$('#math-page').value,/Example note/);
- app.$('#source-open').click();app.$('#source-value').value='\\frac{3}{4}';app.$('#source-apply').click();await wait(35);assert.match(app.$('#math-page').value,/\\frac/);
+ app.$('#source-open').click();app.$('#source-value').value='\\frac{3}{4}';app.$('#source-value').dispatchEvent(new Event('input'));await wait(35);assert.match(app.$('#math-page').value,/\\frac/);
  const second=[...app.$('#documents').children].find(b=>b.textContent==='Second example');second.click();assert.equal(app.$('#math-page').value,'x+1');
  [...app.$('#documents').children].find(b=>b.textContent==='First example').click();app.$('#undo').click();assert.match(app.$('#math-page').value,/Example note/);
  await app.close();assert(app.calls.finished);const saved=app.calls.saved;assert(saved.documents[0].history);assert.equal(saved.documents.length,2);
@@ -43,7 +43,7 @@ test('desktop tabs add pages, retain independent history, and reopen the selecte
  const app=await boot(fixture,'desktop-tabs');assert.equal(app.browser.document.querySelectorAll('[role="tab"]').length,2);
  app.$('#new-tab').click();assert.equal(app.browser.document.querySelectorAll('[role="tab"]').length,3);const id=app.$('[role="tab"][aria-selected="true"]').dataset.pageId;
  app.$('[role="tab"][aria-selected="true"]').dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true}));app.$('[data-tab-action="rename"]').click();app.$('#title').value='Working notes';app.$('#title').dispatchEvent(new Event('input'));app.$('#title').blur();
- app.$('#source-open').click();app.$('#source-value').value='y^3';app.$('#source-apply').click();await wait(35);
+ app.$('#source-open').click();app.$('#source-value').value='y^3';app.$('#source-value').dispatchEvent(new Event('input'));await wait(35);
  [...app.browser.document.querySelectorAll('[role="tab"]')].find(b=>b.dataset.pageId==='first').click();assert.equal(app.$('#math-page').value,'x+1');
  [...app.browser.document.querySelectorAll('[role="tab"]')].find(b=>b.dataset.pageId===id).click();assert.equal(app.$('#math-page').value,'y^3');await app.close();
  const reopened=await boot(app.calls.saved,'desktop-tabs-reload');assert.equal(reopened.$('[role="tab"][aria-selected="true"]').dataset.pageId,id);assert.equal(reopened.$('[role="tab"][aria-selected="true"]').textContent,'Working notes');assert.equal(reopened.$('#math-page').value,'y^3');reopened.$('#undo').click();assert.equal(reopened.$('#math-page').getValue('plain-text'),'');await reopened.close();
@@ -60,5 +60,5 @@ test('desktop close prompts before deleting content and persists the remaining p
 test('desktop context menu duplicates the targeted page without sharing its content or undo',async()=>{
  const fixture={version:2,activeId:'first',documents:[{id:'first',title:'Original',updatedAt:1,content:{type:'math-page',latex:'x+1',mode:'auto'}}]};
  const app=await boot(fixture,'desktop-context-copy');app.$('[role="tab"]').dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:100,clientY:100}));app.$('[data-tab-action="duplicate"]').click();assert.equal(app.browser.document.querySelectorAll('[role="tab"]').length,2);assert.equal(app.$('#math-page').value,'x+1');assert.equal(app.$('#math-page').pageHistory.canUndo,false);
- app.$('#source-open').click();app.$('#source-value').value='z+2';app.$('#source-apply').click();await wait(30);[...app.browser.document.querySelectorAll('[role="tab"]')].find(b=>b.dataset.pageId==='first').click();assert.equal(app.$('#math-page').value,'x+1');await app.close();assert.equal(app.calls.saved.documents[1].content.latex,'z+2');
+ app.$('#source-open').click();app.$('#source-value').value='z+2';app.$('#source-value').dispatchEvent(new Event('input'));await wait(30);[...app.browser.document.querySelectorAll('[role="tab"]')].find(b=>b.dataset.pageId==='first').click();assert.equal(app.$('#math-page').value,'x+1');await app.close();assert.equal(app.calls.saved.documents[1].content.latex,'z+2');
 });

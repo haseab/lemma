@@ -33,7 +33,7 @@ test('website scratchpad edits with the shared engine, reverses clear/source edi
  const equation=f.value;
  f.selection={ranges:[[0,f.lastOffset]]};assert.equal(f.selectionIsCollapsed,false);assert.notEqual(getComputedStyle(f).getPropertyValue('--selection-background-color'),'transparent');f.position=-1;
  f.mode='text';a.$('#clear-page').click();await wait(30);assert.equal(f.getValue('plain-text'),'');assert.equal(f.mode,'math');a.$('#undo').click();assert.equal(f.value,equation);
- a.$('#source-open').click();a.$('#source-value').value='\\frac{3}{4}';a.$('#source-apply').click();await wait(30);assert.match(f.value,/\\frac/);
+ a.$('#source-open').click();a.$('#source-value').value='\\frac{3}{4}';a.$('#source-value').dispatchEvent(new Event('input'));await wait(30);assert.match(f.value,/\\frac/);
  a.$('[data-mode="text"]').click();assert.equal(f.pageInputMode,'text');a.$('[data-mode="auto"]').click();
  const saved=await a.close();assert.match(saved,/\\\\frac/);assert(JSON.parse(saved).documents[0].history.entries.length>1);
  const b=await boot(saved,'reload');assert.match(b.$('#math-page').value,/\\frac/);b.$('#undo').click();assert.equal(b.$('#math-page').value,equation);await b.close();
@@ -44,7 +44,7 @@ test('browser tabs migrate an existing page, isolate edits and undo, rename, and
  const app=await boot(JSON.stringify(legacy),'tabs');assert.equal(app.$('[role="tab"]').textContent,'Existing page');const firstId=app.$('[role="tab"]').dataset.pageId;
  app.$('#new-tab').click();assert.equal(app.browser.document.querySelectorAll('[role="tab"]').length,2);assert.equal(app.$('#math-page').getValue('plain-text'),'');
  app.$('[role="tab"][aria-selected="true"]').dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true}));app.$('[data-tab-action="rename"]').click();assert.equal(app.$('#title').hidden,false);app.$('#title').value='Second page';app.$('#title').dispatchEvent(new Event('input'));app.$('#title').blur();assert.equal(app.$('#title').hidden,true);
- app.$('#source-open').click();app.$('#source-value').value='y+2';app.$('#source-apply').click();await wait(30);
+ app.$('#source-open').click();app.$('#source-value').value='y+2';app.$('#source-value').dispatchEvent(new Event('input'));await wait(30);
  [...app.browser.document.querySelectorAll('[role="tab"]')].find(b=>b.dataset.pageId===firstId).click();assert.equal(app.$('#math-page').value,'x^2');app.$('#undo').click();assert.equal(app.$('#math-page').value,'x');
  const saved=await app.close();assert.equal(JSON.parse(saved).documents.length,2);
  const restored=await boot(saved,'tabs-reload');assert.equal(restored.$('[role="tab"][aria-selected="true"]').textContent,'Existing page');assert.equal(restored.$('#math-page').value,'x');restored.$('#redo').click();assert.equal(restored.$('#math-page').value,'x^2');
@@ -63,8 +63,20 @@ test('web close confirmation preserves cancelled pages, removes accepted pages, 
 });
 
 test('web context duplication uses current edits, isolates the copy, and persists both pages',async()=>{
- const app=await boot(null,'context-copy');app.$('#source-open').click();app.$('#source-value').value='x^2';app.$('#source-apply').click();
+ const app=await boot(null,'context-copy');app.$('#source-open').click();app.$('#source-value').value='x^2';app.$('#source-value').dispatchEvent(new Event('input'));
  const original=app.$('[role="tab"]').dataset.pageId;app.$('[role="tab"]').dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:100,clientY:100}));app.$('[data-tab-action="duplicate"]').click();assert.equal(app.browser.document.querySelectorAll('[role="tab"]').length,2);assert.equal(app.$('#math-page').value,'x^2');assert.match(app.$('[role="tab"][aria-selected="true"]').textContent,/copy$/);
- app.$('#source-open').click();app.$('#source-value').value='y^3';app.$('#source-apply').click();await wait(30);
+ app.$('#source-open').click();app.$('#source-value').value='y^3';app.$('#source-value').dispatchEvent(new Event('input'));await wait(30);
  [...app.browser.document.querySelectorAll('[role="tab"]')].find(b=>b.dataset.pageId===original).click();assert.equal(app.$('#math-page').value,'x^2');const saved=await app.close();assert.equal(JSON.parse(saved).documents.length,2);assert.equal(JSON.parse(saved).documents[1].content.latex,'y^3');
+});
+
+
+test('inline source previews valid edits, retains incomplete drafts per page, and syncs undo',async()=>{
+ const app=await boot(null,'inline-source'),f=app.$('#math-page');
+ app.$('#source-open').click();assert.equal(app.$('#source-panel').hidden,false);assert.equal(app.$('#source-open').getAttribute('aria-expanded'),'true');assert.equal(app.$('#source-dialog'),null);
+ const input=app.$('#source-value');input.value='x^2';input.dispatchEvent(new Event('input'));await wait(30);assert.equal(f.value,'x^2');assert.equal(document.activeElement,input);
+ input.value='\\notacommand{';input.dispatchEvent(new Event('input'));assert.equal(f.value,'x^2');assert.equal(input.getAttribute('aria-invalid'),'true');assert(app.$('#source-error').textContent);
+ const first=app.$('[role="tab"]').dataset.pageId;app.$('#new-tab').click();assert.notEqual(input.value,'\\notacommand{');app.$(`[data-page-id="${first}"]`).click();assert.equal(input.value,'\\notacommand{');assert.equal(app.$('#math-page').value,'x^2');
+ input.value='y+1';input.dispatchEvent(new Event('input'));await wait(30);assert.equal(app.$('#math-page').value,'y+1');assert.equal(input.getAttribute('aria-invalid'),'false');
+ app.$('#undo').click();assert.equal(app.$('#math-page').value,'x^2');assert.equal(input.value,'x^2');
+ input.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}));assert.equal(app.$('#source-panel').hidden,true);assert.equal(app.$('#source-open').getAttribute('aria-expanded'),'false');assert.equal(document.activeElement,app.$('#source-open'));await app.close();
 });

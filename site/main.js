@@ -1,3 +1,5 @@
+import {installSourcePanel} from '../src/source-panel.js';
+import '../src/source-panel.css';
 import {editorHints} from '../src/editor-hints.js';
 import {installTooltips} from '../src/tooltips.js';
 import {createPageTabs} from '../src/page-tabs.js';
@@ -12,7 +14,7 @@ import {installPageHistory} from '../src/history.js';
 import {EMPTY_PAGE,validateDocument,freshDocument,duplicateDocument} from '../src/document.js';
 import {templates} from '../src/templates.js';
 import {FONTS,applyFormatting} from '../src/formatting.js';
-import {importLatex,importPageFile,exportLatex} from '../src/formats.js';
+import {importPageFile,exportLatex} from '../src/formats.js';
 import {insertLatexContent} from '../src/clipboard.js';
 import {loadScratchpad,saveScratchpad} from './scratchpad-store.js';
 import {repositorySettings,releaseDownloads} from './releases.js';
@@ -28,7 +30,7 @@ let toastTimer;function toast(message){$('#toast').textContent=message;$('#toast
 const first=freshDocument('Untitled page');
 let notebook={version:2,activeId:first.id,documents:[first]},page=first,blocked=false;
 try{const loaded=loadScratchpad(localStorage);if(loaded.page)notebook=loaded.page;if(loaded.recovered)toast('Recovered your previous saved copy.');}catch(error){blocked=true;toast(error.message);}
-let field,saveTimer,selection,loading=false;
+let field,saveTimer,selection,loading=false,sourcePanel;
 const tabs=createPageTabs($('#page-tabs'),{onSelect:switchPage,onNew:newPage,onClose:closePage,onDuplicate:duplicatePage,getPage:id=>{capture();return notebook.documents.find(d=>d.id===id);}});
 function updateEmpty(){ $('#scratchpad').classList.toggle('has-content',!!field.getValue('plain-text').trim()); }
 function capture(){if(!field||loading)return;page.title=$('#title').value||'Untitled page';page.content={type:'math-page',latex:field.value,mode:page.content.mode};page.history=field.pageHistory.serialize();page.updatedAt=Date.now();}
@@ -38,7 +40,7 @@ function save(){
  try{saveScratchpad(localStorage,notebook);$('#save-status').textContent='Saved on this device';$('#save-status').classList.remove('error');}
  catch{$('#save-status').textContent='Not saved · export a copy';$('#save-status').classList.add('error');toast('Browser storage is unavailable or full. Export a copy before leaving.');}
 }
-function changed(){if(!field||loading)return;updateEmpty();$('#save-status').textContent='Saving…';clearTimeout(saveTimer);saveTimer=setTimeout(save,250);}
+function changed(){if(!field||loading)return;sourcePanel?.sync();updateEmpty();$('#save-status').textContent='Saving…';clearTimeout(saveTimer);saveTimer=setTimeout(save,250);}
 function mode(value,focus=true){page.content.mode=value;field.pageInputMode=value;field.smartMode=false;field.resetProseInput();if(value!=='auto')field.mode=value;else if(focus)field.mode='math';for(const b of document.querySelectorAll('[data-mode]'))b.setAttribute('aria-pressed',String(b.dataset.mode===value));if(focus){field.focus();changed();}}
 function switchPage(id){
  if(field&&id===notebook.activeId)return;
@@ -48,7 +50,7 @@ function switchPage(id){
  field=createPageMathfield($('#surface'),page.content.latex,changed);installPageHistory(field,page.history,changed);
  field.addEventListener('editor-error',e=>toast(e.detail));field.addEventListener('selection-change',()=>{selection=structuredClone(field.selection);});
  field.addEventListener('keydown',e=>{if(e.key==='Escape'&&field.mode!=='latex'){e.preventDefault();e.stopPropagation();document.querySelector('[data-mode="auto"]').focus();}},true);
- mode(page.content.mode,false);selection=null;loading=false;updateEmpty();tabs.render(notebook.documents,notebook.activeId);
+ mode(page.content.mode,false);selection=null;loading=false;updateEmpty();tabs.render(notebook.documents,notebook.activeId);sourcePanel?.sync();
  if(switching){save();field.focus();}
 }
 function duplicatePage(id){
@@ -76,11 +78,10 @@ $('#title').addEventListener('input',changed);
 const examples={quadratic:'\\displaylines{x^2+6x+5=0\\\\(x+1)(x+5)=0\\\\x=-1\\;\\text{or}\\;x=-5}',calculus:'\\displaylines{f(x)=x^2\\qquad f\'(x)=2x\\\\\\int_0^1x^2\\,dx=\\left[\\frac{x^3}{3}\\right]_0^1=\\frac{1}{3}}'};
 for(const b of document.querySelectorAll('[data-example]'))b.onclick=()=>{field.focus();field.pageHistory.transaction(()=>insertLatexContent(field,examples[b.dataset.example]));changed();};
 $('#clear-page').onclick=()=>{field.pageHistory.transaction(()=>{field.value=EMPTY_PAGE;field.mode=page.content.mode==='text'?'text':'math';field.position=-1;});field.resetProseInput();field.focus();changed();toast('Page cleared. Undo to bring it back.');};
-for(const name of ['source','help','privacy'])$('#'+name+'-open').onclick=()=>{if(name==='source'){$('#source-value').value=field.value;$('#source-error').textContent='';}$('#'+name+'-dialog').showModal();};
+sourcePanel=installSourcePanel({anchor:$('.paper'),button:$('#source-open'),getPageId:()=>notebook.activeId,getField:()=>field,onChange:changed,onMessage:toast});
+for(const name of ['help','privacy'])$('#'+name+'-open').onclick=()=>$('#'+name+'-dialog').showModal();
 $('#keyboard-open').onclick=()=>{$('#help-dialog').close();field.focus();window.mathVirtualKeyboard.show();};
 for(const el of document.querySelectorAll('[data-mod]'))el.textContent=/Mac/i.test(navigator.platform)?'⌘':'Ctrl+';
-$('#source-apply').onclick=()=>{try{const latex=importLatex($('#source-value').value);if(validateLatex(latex).length)throw Error('This source contains unsupported or incomplete LaTeX.');field.pageHistory.transaction(()=>{field.value=latex;field.mode=page.content.mode==='text'?'text':'math';field.position=-1;});field.resetProseInput();$('#source-dialog').close();field.focus();changed();}catch(error){$('#source-error').textContent=error.message;}};
-$('#copy-latex').onclick=async()=>{try{await navigator.clipboard.writeText($('#source-value').value);toast('LaTeX copied.');}catch{toast('Select the source above to copy it.');}};
 function download(data,extension){const url=URL.createObjectURL(new Blob([data],{type:extension==='lemma'?'application/json':'text/plain'})),a=document.createElement('a');a.href=url;a.download=($('#title').value.replace(/[<>:"/\\|?*\x00-\x1f]/g,'').trim()||'Page')+'.'+extension;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
 for(const b of document.querySelectorAll('[data-export]'))b.onclick=async()=>{ $('#export-menu').open=false;const kind=b.dataset.export;if(kind==='pdf'){await document.fonts.ready;window.print();return;}if(kind==='latex')download(exportLatex(field.value),'tex');else if(kind==='text')download(field.getValue('plain-text'),'txt');else download(JSON.stringify({version:2,title:$('#title').value||'Untitled page',content:{type:'math-page',latex:field.value,mode:page.content.mode}},null,2),'lemma');};
 $('#open-file').onclick=()=>$('#file-input').click();

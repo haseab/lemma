@@ -1,14 +1,14 @@
+import {installSourcePanel} from './source-panel.js';
 import {editorHints} from './editor-hints.js';
 import {installTooltips} from './tooltips.js';
 import {createPageTabs} from './page-tabs.js';
 import {brandMark} from './brand.js';
 import {validateLatex as checkLatex} from 'mathlive';
 import {createAutosaveScheduler} from './autosave.js';
-import {insertLatexContent} from './clipboard.js';
 import {templates} from './templates.js';
 import {installPageHistory} from './history.js';
 import {findMatches,replaceMatch,replaceAll} from './find.js';
-import {importPageFile,importLatex,exportLatex,readableSelection} from './formats.js';
+import {importPageFile,exportLatex,readableSelection} from './formats.js';
 import {MathfieldElement,createPageMathfield} from './page-editor.js';
 import {createIcons,icons} from 'lucide';
 import {EMPTY_PAGE,freshDocument,validateNotebook,validateDocument,duplicateDocument} from './document.js';
@@ -27,10 +27,9 @@ installTooltips(document);
 const $=s=>document.querySelector(s);
 const addDialog=(id,html)=>{const d=document.createElement('dialog');d.id=id;d.innerHTML=html;const heading=d.querySelector('h2');heading.id=id+'-title';d.setAttribute('aria-labelledby',heading.id);document.body.append(d);return d;};
 addDialog('export-dialog','<h2>Export page</h2><p>Keep an editable copy, share a PDF, or use the source in another editor.</p><div class="dialog-actions"><button data-export="lemma">Editable .lemma</button><button data-export="latex">LaTeX .tex</button><button data-export="pdf">PDF</button><button data-export="text">Plain text</button></div><button data-close>Close</button>');
-addDialog('source-dialog','<h2>LaTeX source</h2><label for="source-value">Equation source or a simple LaTeX document</label><textarea id="source-value" spellcheck="false"></textarea><p id="source-error" role="alert"></p><div class="dialog-actions"><button id="source-apply">Apply to page</button><button id="source-insert">Insert at cursor</button><button id="source-export">Export .tex</button><button data-close>Cancel</button></div>');
 addDialog('versions-dialog','<h2>Previous versions</h2><p>Restore this page from an automatic notebook backup. Your other pages stay as they are. You can undo the restore.</p><div id="version-list"></div><button data-close>Close</button>');
 for(const dialog of document.querySelectorAll('dialog'))dialog.querySelector('[data-close]')?.addEventListener('click',()=>dialog.close());
-let notebook,mf,loading=false,blocked=false,dirty=false,failures=0,revision=0,editRevision=0,formatSelection=null,sourceSelection=null,matchIndex=-1;
+let notebook,mf,loading=false,blocked=false,dirty=false,failures=0,revision=0,editRevision=0,formatSelection=null,sourcePanel=null,matchIndex=-1;
 const autosave=createAutosaveScheduler(persist,{shouldRetry:()=>!blocked});
 function toast(message){$('#toast').textContent=message;$('#toast').classList.add('visible');setTimeout(()=>$('#toast').classList.remove('visible'),6000);}
 const active=()=>notebook.documents.find(d=>d.id===notebook.activeId);
@@ -46,7 +45,7 @@ function capture(){
  if(!mf||loading||!notebook)return;
  active().content={type:'math-page',latex:mf.value,mode:active().content.mode};active().history=mf.pageHistory.serialize();active().title=$('#title').value||'Untitled page';if(dirty)active().updatedAt=Date.now();trimHistories();
 }
-function scheduleSave(){if(loading)return;dirty=true;editRevision++;if(blocked)return;$('#save-status').textContent='Saving…';autosave.schedule();}
+function scheduleSave(){if(loading)return;sourcePanel?.sync();dirty=true;editRevision++;if(blocked)return;$('#save-status').textContent='Saving…';autosave.schedule();}
 async function persist(){
  if(blocked)return false;capture();const rev=++revision,capturedEdit=editRevision;
  try{
@@ -87,7 +86,7 @@ function switchDocument(id){
   if(!(e.metaKey||e.ctrlKey))return;const key=e.key.toLowerCase();
   if(['m','t','f','g'].includes(key)){e.preventDefault();e.stopPropagation();if(key==='m'||key==='t'){mode(key==='m'?'math':'text');scheduleSave();}else if(key==='f')openFind();else nextMatch(e.shiftKey?-1:1);}
  },true);
- $('#title').value=active().title;mode(active().content.mode,false);loading=false;formatSelection=null;renderList();$('#page').scrollTop=0;requestAnimationFrame(()=>mf.focus());updateFind();if(switching)scheduleSave();
+ $('#title').value=active().title;mode(active().content.mode,false);loading=false;formatSelection=null;renderList();sourcePanel?.sync();$('#page').scrollTop=0;requestAnimationFrame(()=>mf.focus());updateFind();if(switching)scheduleSave();
 }
 async function boot(){
  let recovered;
@@ -130,11 +129,7 @@ function closeFind(){$('#findbar').hidden=true;mf.focus();}
 const findOptions=()=>({caseSensitive:$('#find-case').checked});
 function updateFind(){const matches=findMatches(mf,$('#find-query').value,findOptions());$('#find-count').textContent=matches.length+' match'+(matches.length===1?'':'es');if(matchIndex>=matches.length)matchIndex=-1;return matches;}
 function nextMatch(delta=1){const matches=updateFind();if(!matches.length)return;matchIndex=matchIndex<0?(delta>0?0:matches.length-1):(matchIndex+delta+matches.length)%matches.length;mf.selection={ranges:[matches[matchIndex].range]};mf.executeCommand('scrollIntoView');$('#find-count').textContent=(matchIndex+1)+' of '+matches.length;}
-function showSource(){sourceSelection=structuredClone(mf.selection);$('#source-value').value=mf.selectionIsCollapsed?mf.value:mf.getValue(mf.selection,'latex');$('#source-error').textContent='';$('#source-dialog').showModal();$('#source-value').focus();}
-function applySource(whole){
- try{const latex=importLatex($('#source-value').value);validateLatex(latex);mf.pageHistory.flush();mf.proseSuspended=true;mf.pageHistory.transaction(()=>{if(whole){mf._mathfield.model.mode='math';mf.setValue(latex,{mode:'math',format:'latex',insertionMode:'replaceAll'});}else{mf.selection=sourceSelection;insertLatexContent(mf,latex);}});setTimeout(()=>{mf.proseSuspended=false;},0);$('#source-dialog').close();scheduleSave();mf.focus();}
- catch(error){$('#source-error').textContent=error.message;}
-}
+sourcePanel=installSourcePanel({anchor:$('#surface'),button:$('#source-open'),getPageId:()=>notebook.activeId,getField:()=>mf,onChange:scheduleSave,onMessage:toast});
 async function showVersions(){
  $('#version-list').replaceChildren();$('#versions-dialog').showModal();
  if(!window.lemma){$('#version-list').textContent='Previous versions are available in the desktop app.';return;}
@@ -156,13 +151,12 @@ const actions={
   if(file)await importFile(file);
  }catch(error){toast(error.message||'Could not open the file.');}},
  export:()=>$('#export-dialog').showModal(),latex:()=>exportPage('latex'),text:()=>exportPage('text'),pdf:()=>exportPage('pdf'),
- undo:()=>textControlFocused()?document.execCommand('undo'):mf.pageHistory.undo(),redo:()=>textControlFocused()?document.execCommand('redo'):mf.pageHistory.redo(),find:openFind,replace:openFind,findNext:()=>nextMatch(1),findPrevious:()=>nextMatch(-1),versions:showVersions,insertLatex:showSource,
+ undo:()=>textControlFocused()?document.execCommand('undo'):mf.pageHistory.undo(),redo:()=>textControlFocused()?document.execCommand('redo'):mf.pageHistory.redo(),find:openFind,replace:openFind,findNext:()=>nextMatch(1),findPrevious:()=>nextMatch(-1),versions:showVersions,insertLatex:()=>sourcePanel.open(),
  copyLatex:async()=>{try{const data=mf.selectionIsCollapsed?mf.value:mf.getValue(mf.selection,'latex');if(window.lemma)await window.lemma.copyText(data);else await navigator.clipboard.writeText(data);toast('LaTeX copied.');}catch{toast('Could not copy. Open LaTeX source to select and copy it.');}}
 };
 for(const action of ['new','open','export','pdf'])$('#'+action).onclick=()=>actions[action]();
-$('#find-open').onclick=openFind;$('#source-open').onclick=showSource;$('#versions-open').onclick=showVersions;
+$('#find-open').onclick=openFind;$('#versions-open').onclick=showVersions;
 for(const button of document.querySelectorAll('[data-export]'))button.onclick=()=>{exportPage(button.dataset.export);$('#export-dialog').close();};
-$('#source-apply').onclick=()=>applySource(true);$('#source-insert').onclick=()=>applySource(false);$('#source-export').onclick=()=>exportPage('latex');
 $('#find-query').oninput=()=>{matchIndex=-1;updateFind();};$('#find-case').onchange=()=>{matchIndex=-1;updateFind();};$('#find-next').onclick=()=>nextMatch(1);$('#find-prev').onclick=()=>nextMatch(-1);$('#find-close').onclick=closeFind;
 $('#find-query').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();nextMatch(e.shiftKey?-1:1);}if(e.key==='Escape')closeFind();};
 $('#replace-one').onclick=()=>{const matches=updateFind();if(!matches.length)return;mf.pageHistory.flush();replaceMatch(mf,matches[Math.max(matchIndex,0)],$('#replace-value').value);matchIndex=-1;scheduleSave();setTimeout(updateFind,25);};
@@ -189,3 +183,5 @@ window.addEventListener('beforeunload',()=>{if(!window.lemma){autosave.flush();}
 boot().catch(()=>{blocked=true;$('#save-status').textContent='Editor could not start';toast('The editor could not start. Your saved notebook is preserved.');});
 
 import './editor-hints.css';
+
+import './source-panel.css';
