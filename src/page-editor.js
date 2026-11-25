@@ -1,3 +1,7 @@
+import {installProseNavigation} from './navigation.js';
+import {insertPageBreak} from './editing.js';
+import {installClipboard} from './clipboard.js';
+import {installPageWrapping} from './layout.js';
 import {MathfieldElement} from 'mathlive';
 import {indent} from './formatting.js';
 import {installProseInput} from './prose.js';
@@ -16,8 +20,12 @@ export function createPageMathfield(container,latex,onInput){
  field.position=-1;
  installProseInput(field);
  installExponentBackspace(field);
+ installPageWrapping(field);
+ installProseNavigation(field);
+ installClipboard(field,message=>field.dispatchEvent(new CustomEvent('editor-error',{detail:message})));
  field.addEventListener('input',onInput);
  field.addEventListener('keydown',event=>{
+  if(event.key==='Enter'&&!event.altKey&&!event.metaKey&&!event.ctrlKey&&field.mode!=='latex'){event.preventDefault();event.stopImmediatePropagation();insertPageBreak(field);return;}
   if(event.key!=='Tab'||event.altKey||event.metaKey||event.ctrlKey||field.mode==='latex')return;
   event.preventDefault();event.stopPropagation();indent(field,event.shiftKey);
  },true);
