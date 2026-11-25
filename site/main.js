@@ -3,7 +3,7 @@ import 'mathlive/static.css';
 import {repositorySettings,releaseDownloads} from './releases.js';
 MathfieldElement.fontsDirectory='./fonts';MathfieldElement.soundsDirectory=null;
 const $=s=>document.querySelector(s);
-const examples={quadratic:'\\displaylines{\\text{Find a different way in.}\\\\x^2+6x+5=0\\\\(x+1)(x+5)=0\\\\\\therefore x=-1\\;\\text{ or }\\;x=-5}',calculus:'\\displaylines{\\text{A little change adds up.}\\\\f(x)=x^2\\qquad f\'(x)=2x\\\\\\int_0^1 x^2\\,dx=\\left[\\frac{x^3}{3}\\right]_0^1=\\frac{1}{3}}',blank:'\\displaylines{}'};
+const examples={quadratic:'\\displaylines{\\text{Quadratic equation}\\\\x^2+6x+5=0\\\\(x+1)(x+5)=0\\\\\\therefore x=-1\\;\\text{ or }\\;x=-5}',calculus:'\\displaylines{\\text{Definite integral}\\\\f(x)=x^2\\qquad f\'(x)=2x\\\\\\int_0^1 x^2\\,dx=\\left[\\frac{x^3}{3}\\right]_0^1=\\frac{1}{3}}',blank:'\\displaylines{}'};
 const field=new MathfieldElement();field.mathVirtualKeyboardPolicy='manual';field.setAttribute('aria-label','Try Lemma: edit the example equation');field.value=examples.quadratic;$('#demo-field').append(field);
 let current='quadratic';
 function chooseExample(name){current=name;field.value=examples[name];for(const button of document.querySelectorAll('[data-example]'))button.setAttribute('aria-pressed',String(button.dataset.example===name));}
