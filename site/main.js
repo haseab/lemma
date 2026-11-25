@@ -1,7 +1,7 @@
 import 'mathlive/static.css';
 import {installFullscreen} from './fullscreen.js';
 import {validateLatex} from 'mathlive';
-import {createIcons,ArrowUpRight,ShieldCheck,FileText,FolderOpen,Download,Bold,Italic,Undo2,Redo2,CodeXml,CircleHelp,Plus,Eraser,Monitor,Apple,AppWindow,ArrowDownToLine,Maximize2,Minimize2} from 'lucide';
+import {createIcons,ArrowUpRight,FileText,FolderOpen,Download,Bold,Italic,Undo2,Redo2,CodeXml,CircleHelp,Plus,Eraser,Monitor,Apple,AppWindow,ArrowDownToLine,Maximize2,Minimize2} from 'lucide';
 import {MathfieldElement,createPageMathfield} from '../src/page-editor.js';
 import {installPageHistory} from '../src/history.js';
 import {EMPTY_PAGE,validateDocument} from '../src/document.js';
@@ -13,7 +13,7 @@ import {loadScratchpad,saveScratchpad} from './scratchpad-store.js';
 import {repositorySettings,releaseDownloads} from './releases.js';
 import {detectDesktopPlatform,updatePlatformLinks} from './platform.js';
 MathfieldElement.fontsDirectory=new URL('./fonts',document.baseURI).href;MathfieldElement.soundsDirectory=null;
-createIcons({icons:{ArrowUpRight,ShieldCheck,FileText,FolderOpen,Download,Bold,Italic,Undo2,Redo2,CodeXml,CircleHelp,Plus,Eraser,Monitor,Apple,AppWindow,ArrowDownToLine,Maximize2,Minimize2}});
+createIcons({icons:{ArrowUpRight,FileText,FolderOpen,Download,Bold,Italic,Undo2,Redo2,CodeXml,CircleHelp,Plus,Eraser,Monitor,Apple,AppWindow,ArrowDownToLine,Maximize2,Minimize2}});
 const $=s=>document.querySelector(s);
 installFullscreen(document.documentElement,$('#fullscreen'));
 let toastTimer;function toast(message){$('#toast').textContent=message;$('#toast').classList.add('visible');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('#toast').classList.remove('visible'),5500);}
@@ -33,7 +33,7 @@ field=createPageMathfield($('#surface'),page.content.latex,changed);
 installPageHistory(field,page.history,changed);
 field.addEventListener('editor-error',e=>toast(e.detail));
 field.addEventListener('selection-change',()=>{selection=structuredClone(field.selection);});
-function mode(value,focus=true){page.content.mode=value;field.pageInputMode=value;field.smartMode=false;field.resetProseInput();if(value!=='auto')field.mode=value;else if(focus)field.mode='math';for(const b of document.querySelectorAll('[data-mode]'))b.setAttribute('aria-pressed',String(b.dataset.mode===value));$('#mode-status').textContent=value==='auto'?'Auto · math & text':value==='math'?'Math mode':'Text mode';if(focus){field.focus();changed();}}
+function mode(value,focus=true){page.content.mode=value;field.pageInputMode=value;field.smartMode=false;field.resetProseInput();if(value!=='auto')field.mode=value;else if(focus)field.mode='math';for(const b of document.querySelectorAll('[data-mode]'))b.setAttribute('aria-pressed',String(b.dataset.mode===value));if(focus){field.focus();changed();}}
 mode(page.content.mode,false);updateEmpty();$('#save-status').textContent=blocked?'Export to keep your work':'Saved in this browser';
 for(const b of document.querySelectorAll('[data-mode]')){b.onmousedown=e=>e.preventDefault();b.onclick=()=>mode(b.dataset.mode);}
 for(const b of document.querySelectorAll('[data-insert]')){b.onmousedown=e=>e.preventDefault();b.onclick=()=>{field.focus();field.pageHistory.transaction(()=>field.executeCommand(['insert',templates[b.dataset.insert]]));changed();};}
@@ -63,4 +63,4 @@ const detected=detectDesktopPlatform(navigator),repository=repositorySettings(im
 for(const link of document.querySelectorAll('[data-source]')){if(repository){link.href=repository.url;link.target='_blank';link.rel='noopener noreferrer';}else link.addEventListener('click',()=>toast('Source code link has not been configured.'));}
 function updateDownloads(downloads){updatePlatformLinks(document,detected,downloads);for(const platform of ['mac','windows']){const link=document.querySelector(`[data-download="${platform}"]`),status=document.querySelector(`[data-build-status="${platform}"]`),asset=downloads[platform];link.href=asset?.url||(repository?repository.url+'/releases':'#release-note');link.title=asset?'Download for '+(platform==='mac'?'Mac':'Windows'):'View preview releases';status.textContent=asset?`${asset.version} · ${asset.preview?'Preview':'Release'}`:'Public download coming soon';}}
 updateDownloads({});
-if(repository){try{const response=await fetch(repository.api,{headers:{Accept:'application/vnd.github+json'},signal:AbortSignal.timeout(6000)});if(!response.ok)throw Error('No releases');updateDownloads(releaseDownloads(await response.json(),repository));$('#release-note').textContent='Desktop previews are in active development. Check release notes before installing.';}catch{$('#release-note').textContent='Check GitHub Releases for desktop preview availability.';}}
+if(repository){try{const response=await fetch(repository.api,{headers:{Accept:'application/vnd.github+json'},signal:AbortSignal.timeout(6000)});if(!response.ok)throw Error('No releases');updateDownloads(releaseDownloads(await response.json(),repository));$('#release-note').textContent='Preview builds. Read release notes before installing.';}catch{$('#release-note').textContent='Preview builds appear on GitHub Releases.';}}
