@@ -55,7 +55,7 @@ Use Command-F to find literal text and symbols. Command-G and Shift-Command-G mo
 - **Edit → Insert LaTeX** opens the source dialog. Apply edited source to the page or insert it at the cursor; both actions can be undone.
 - Import supports equation fragments, common AMS display environments, and simple LaTeX documents containing prose and inline math. This is MathLive-compatible mathematical LaTeX, not a complete TeX implementation. Custom macros, included files and arbitrary package-dependent document commands are not executed or generally supported.
 - **File → Export** offers editable `.lemma`, a standalone LaTeX `.tex` document, PDF, and readable plain text. LaTeX exports declare AMS math and color packages. Editable exports omit local undo history.
-- Copying a selection puts readable text, LaTeX and MathML HTML on the clipboard. Other apps choose the formats they support. **Edit → Copy selection as LaTeX** explicitly copies source.
+- Copying a selection puts readable plain/HTML text, LaTeX and MathML on the clipboard. Other apps choose the formats they support. **Edit → Copy selection as LaTeX** explicitly copies source.
 
 ## Checks
 

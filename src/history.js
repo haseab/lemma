@@ -36,6 +36,7 @@ export function installPageHistory(field,saved,onChange=()=>{}){
   field.setValue(entry.latex,{mode:'math',format:'latex',insertionMode:'replaceAll',style:{},silenceNotifications:true});
   editor.model.mode=entry.typingMode;
   field.selection={ranges:entry.selection.ranges.map(r=>r.map(n=>Math.min(n,field.lastOffset))),direction:entry.selection.direction};
+  editor.model.announce('line');
   applying=false;
  }
  function move(delta){flush();const index=state.index+delta;if(index<0||index>=state.entries.length)return false;state.index=index;apply(state.entries[index]);onChange();return true;}

@@ -5,7 +5,10 @@ import {looksLikeProse} from './prose.js';
 export function clipboardPayload(field){
  const latex=field.getValue(field.selection,'latex');
  const mathml=convertLatexToMathMl(latex);
- return {'text/plain':readableSelection(field),'application/x-latex':latex,'text/html':mathml.startsWith('<math')?mathml:`<math xmlns="http://www.w3.org/1998/Math/MathML">${mathml}</math>`};
+ const text=readableSelection(field),html=text.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ // Rich-text apps can import unknown MathML elements as separate paragraphs.
+ // Supply a readable HTML fallback and keep structured math in its own type.
+ return {'text/plain':text,'application/x-latex':latex,'text/html':`<span style="white-space:pre-wrap">${html}</span>`,'application/mathml+xml':mathml.startsWith('<math')?mathml:`<math xmlns="http://www.w3.org/1998/Math/MathML">${mathml}</math>`};
 }
 export function insertClipboard(field,types,{onError=()=>{}}={}){
  const latex=types['application/x-latex'];let source=latex||types['text/plain'];
