@@ -1,6 +1,7 @@
 import 'mathlive/static.css';
+import {installFullscreen} from './fullscreen.js';
 import {validateLatex} from 'mathlive';
-import {createIcons,ArrowUpRight,ShieldCheck,FileText,FolderOpen,Download,Bold,Italic,Undo2,Redo2,CodeXml,CircleHelp,Plus,Eraser,Monitor,Apple,AppWindow,ArrowDownToLine} from 'lucide';
+import {createIcons,ArrowUpRight,ShieldCheck,FileText,FolderOpen,Download,Bold,Italic,Undo2,Redo2,CodeXml,CircleHelp,Plus,Eraser,Monitor,Apple,AppWindow,ArrowDownToLine,Maximize2,Minimize2} from 'lucide';
 import {MathfieldElement,createPageMathfield} from '../src/page-editor.js';
 import {installPageHistory} from '../src/history.js';
 import {EMPTY_PAGE,validateDocument} from '../src/document.js';
@@ -12,8 +13,9 @@ import {loadScratchpad,saveScratchpad} from './scratchpad-store.js';
 import {repositorySettings,releaseDownloads} from './releases.js';
 import {detectDesktopPlatform,updatePlatformLinks} from './platform.js';
 MathfieldElement.fontsDirectory=new URL('./fonts',document.baseURI).href;MathfieldElement.soundsDirectory=null;
-createIcons({icons:{ArrowUpRight,ShieldCheck,FileText,FolderOpen,Download,Bold,Italic,Undo2,Redo2,CodeXml,CircleHelp,Plus,Eraser,Monitor,Apple,AppWindow,ArrowDownToLine}});
+createIcons({icons:{ArrowUpRight,ShieldCheck,FileText,FolderOpen,Download,Bold,Italic,Undo2,Redo2,CodeXml,CircleHelp,Plus,Eraser,Monitor,Apple,AppWindow,ArrowDownToLine,Maximize2,Minimize2}});
 const $=s=>document.querySelector(s);
+installFullscreen(document.documentElement,$('#fullscreen'));
 let toastTimer;function toast(message){$('#toast').textContent=message;$('#toast').classList.add('visible');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('#toast').classList.remove('visible'),5500);}
 let page={version:1,title:'Untitled page',content:{type:'math-page',latex:EMPTY_PAGE,mode:'auto'}},blocked=false;
 try{const loaded=loadScratchpad(localStorage);if(loaded.page)page=loaded.page;if(loaded.recovered)toast('Recovered your previous saved copy.');}catch(error){blocked=true;toast(error.message);}

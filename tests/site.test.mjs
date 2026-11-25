@@ -42,3 +42,19 @@ test('web storage failures preserve the previous saved page and corrupt-only sto
  assert.throws(()=>saveScratchpad(full,storedPage('z')),/Full/);assert.equal(storage.getItem(STORAGE_KEY),old);
  storage.setItem(STORAGE_KEY,'bad');assert.throws(()=>loadScratchpad(storage),/preserved/);
 });
+
+const {installFullscreen}=await import('../site/fullscreen.js');
+test('fullscreen fallback toggles the writing layout and respects Escape in open dialogs',async()=>{
+ const browser=new Window(),d=browser.document;d.body.innerHTML='<button id="fullscreen"></button><dialog open></dialog>';const button=d.querySelector('button');installFullscreen(d.documentElement,button);
+ button.click();assert(d.body.classList.contains('scratchpad-fullscreen'));assert.equal(button.getAttribute('aria-label'),'Exit fullscreen');
+ d.dispatchEvent(new browser.KeyboardEvent('keydown',{key:'Escape'}));assert(d.body.classList.contains('scratchpad-fullscreen'));
+ d.querySelector('dialog').removeAttribute('open');d.dispatchEvent(new browser.KeyboardEvent('keydown',{key:'Escape'}));assert(!d.body.classList.contains('scratchpad-fullscreen'));assert.equal(button.getAttribute('aria-pressed'),'false');
+ await browser.happyDOM.close();
+});
+test('native fullscreen follows browser Escape and failed requests retain a working viewport toggle',async()=>{
+ const browser=new Window(),d=browser.document;d.body.innerHTML='<button></button>';const button=d.querySelector('button'),root=d.documentElement;let current=null;
+ Object.defineProperty(d,'fullscreenElement',{get:()=>current});root.requestFullscreen=async()=>{current=root;d.dispatchEvent(new browser.Event('fullscreenchange'));};d.exitFullscreen=async()=>{current=null;d.dispatchEvent(new browser.Event('fullscreenchange'));};installFullscreen(root,button);
+ button.click();assert.equal(current,root);current=null;d.dispatchEvent(new browser.Event('fullscreenchange'));assert.equal(button.getAttribute('aria-pressed'),'false');
+ root.requestFullscreen=async()=>{throw Error('Unavailable');};button.click();await Promise.resolve();assert.equal(button.getAttribute('aria-pressed'),'true');button.click();await Promise.resolve();assert.equal(button.getAttribute('aria-pressed'),'false');
+ await browser.happyDOM.close();
+});
