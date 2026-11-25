@@ -1,7 +1,7 @@
 {
   "name": "lemma-math",
   "productName": "Lemma",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "private": true,
   "description": "A quiet place to think in words and equations",
   "type": "module",

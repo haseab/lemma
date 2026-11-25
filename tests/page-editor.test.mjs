@@ -292,3 +292,168 @@ test('empty-row carets keep inline geometry before typing and after deleting a r
  await new Promise(r=>setTimeout(r,30));check();
  f.remove();c.remove();
 });
+
+test('Auto formats domain operators and reinterprets complete connected phrases as prose',async()=>{
+ for(const word of ['Hom','End','Aut','colim','Ext','Spec']){
+  const f=scratch();await type(f,word);assert.match(f.value,new RegExp('\\\\operatorname\\{(?:\\\\mathrm\\{)?'+word));assert.equal(f.mode,'math');
+  await type(f,' is useful');assert.equal(f.mode,'text');assert.equal(f.getValue('plain-text'),word+' is useful');assert(!f.value.includes('\\operatorname'));
+  assert.equal(f.errors.length,0);f.parentElement.remove();
+ }
+});
+test('operator prefixes become ordinary words without losing letters',async()=>{
+ const f=scratch();await type(f,'Endless');assert.equal(f.mode,'text');assert.equal(f.getValue('plain-text'),'Endless');assert(!f.value.includes('\\operatorname'));
+ await type(f,'\n');await type(f,'Autumn');assert.equal(f.getValue('plain-text').split('\n').at(-1),'Autumn');assert.equal(f.errors.length,0);
+ f.parentElement.remove();
+});
+test('operators in structured equations remain math and sentence conversion preserves preceding equations',async()=>{
+ const f=scratch();await type(f,'Hom');await type(f,'(A,B)');assert.match(f.value,/\\operatorname\{(?:\\mathrm\{)?Hom/);assert.equal(f.mode,'math');assert.equal(f.errors.length,0);
+ await type(f,'\n');await type(f,'sin ');await type(f,'is useful');assert.match(f.value,/\\operatorname\{(?:\\mathrm\{)?Hom/);assert(!f.value.includes('\\sin'));assert.match(f.getValue('plain-text'),/sin is useful/);assert.equal(f.mode,'text');
+ f.parentElement.remove();
+});
+
+test('deleting prose back to a recognized operator restores notation with persistent Undo and Redo',async()=>{
+ const f=scratch();installPageHistory(f,null);await type(f,'End');f.pageHistory.flush();const mathematical=f.value;
+ await type(f,'less');f.pageHistory.flush();assert.equal(f.getValue('plain-text'),'Endless');
+ for(let i=0;i<4;i++)await erase(f);f.pageHistory.flush();assert.equal(f.value,mathematical);assert.equal(f.mode,'math');
+ assert(f.pageHistory.undo());assert.equal(f.getValue('plain-text'),'Endl');assert.equal(f.mode,'text');
+ assert(f.pageHistory.redo());assert.equal(f.value,mathematical);assert.equal(f.errors.length,0);
+ const saved=f.pageHistory.serialize(),container=f.parentElement,latex=f.value;f.pageHistory.dispose();
+ const restored=createPageMathfield(container,latex,()=>{});installPageHistory(restored,saved);restored.pageHistory.undo();assert.equal(restored.getValue('plain-text'),'Endl');
+ restored.pageHistory.dispose();container.remove();
+});
+test('styled operators preserve color through prose conversion and forced Text mode remains literal',async()=>{
+ const f=scratch();applyFormatting(f,{color:'#315b42',fontSize:6});await type(f,'Hom');assert.match(f.value,/\\operatorname/);assert.match(f.value,/315b42/);
+ await type(f,' is useful');assert.equal(f.mode,'text');assert.match(f.value,/315b42/);assert(!f.value.includes('\\operatorname'));assert(!f.value.includes('\\mathrm'));assert.match(f.value,/is useful/);assert.equal(f.errors.length,0);
+ f.pageInputMode='text';f.mode='text';await type(f,' End');assert(!f.value.includes('\\operatorname'));f.parentElement.remove();
+});
+
+test('natural-language quantifiers become symbols and revert when the run becomes a sentence',async()=>{
+ const f=scratch();await type(f,'for all');assert.match(f.value,/\\forall/);assert.equal(f.mode,'math');
+ await type(f,' x');assert.match(f.value,/\\forall/);assert.equal(f.mode,'math');
+ f.parentElement.remove();
+ const g=scratch();await type(g,'for all practical purposes');assert.equal(g.mode,'text');assert.equal(g.getValue('plain-text'),'for all practical purposes');assert(!g.value.includes('\\forall'));g.parentElement.remove();
+ const h=scratch();await type(h,'there exists');assert.match(h.value,/\\exists/);await type(h,' a reason');assert.equal(h.getValue('plain-text'),'there exists a reason');assert.equal(h.mode,'text');h.parentElement.remove();
+});
+test('every automatic phrase parses, inserts cleanly, and can turn back into prose',async()=>{
+ const {NOTATION_GROUPS}=await import('../src/math-words.js');
+ for(const phrase of NOTATION_GROUPS.flatMap(group=>group.phrases).filter(p=>!p.template)){
+  const f=scratch();await type(f,(phrase.context?'x ':'')+phrase.text+(phrase.text.includes(' ')?'':' '));
+  assert.equal(f.errors.length,0,phrase.text);assert.equal(f.mode,'math',phrase.text);
+  assert(f.value.includes(phrase.latex),phrase.text+' should become '+phrase.latex+', got '+f.value);
+  await type(f,' useful explanation');assert.equal(f.mode,'text',phrase.text);assert.match(f.getValue('plain-text'),new RegExp(phrase.text),phrase.text);assert.equal(f.errors.length,0,phrase.text);
+  f.parentElement.remove();
+ }
+});
+test('disabling a notation group prevents its recognition but leaves explicit LaTeX and existing notation intact',async()=>{
+ const f=scratch();f.notationGroups=f.notationGroups.filter(id=>id!=='logic'&&id!=='algebra');
+ await type(f,'for all');assert(!f.value.includes('\\forall'));assert.equal(f.mode,'text');
+ await type(f,'\nHom');assert(!f.value.includes('\\operatorname'));assert.equal(f.mode,'text');
+ f.executeCommand(['insert','\\forall',{mode:'math',format:'latex'}]);assert.match(f.value,/\\forall/);assert.equal(f.errors.length,0);
+ f.parentElement.remove();
+});
+
+test('phrase conversion survives Undo/Redo, deletion, and saved history without touching ordinary sentences',async()=>{
+ const f=scratch();installPageHistory(f);await type(f,'for all');f.pageHistory.flush();const symbol=f.value;
+ await type(f,' people');f.pageHistory.flush();assert.equal(f.getValue('plain-text'),'for all people');
+ while(f.value!==symbol&&f.pageHistory.canUndo)f.pageHistory.undo();assert.equal(f.value,symbol);
+ while(f.getValue('plain-text')!=='for all people'&&f.pageHistory.canRedo)f.pageHistory.redo();assert.equal(f.getValue('plain-text'),'for all people');
+ for(let i=0;i<6;i++)await erase(f);f.pageHistory.flush();assert.match(f.value,/\\forall/);assert.equal(f.mode,'math');
+ const history=f.pageHistory.serialize(),container=f.parentElement,latex=f.value;f.pageHistory.dispose();const reopened=createPageMathfield(container,latex,()=>{});installPageHistory(reopened,history);assert(reopened.pageHistory.canUndo);assert.match(reopened.value,/\\forall/);reopened.pageHistory.dispose();container.remove();
+ const prose=scratch();await type(prose,'A useful explanation for all readers');assert.equal(prose.getValue('plain-text'),'A useful explanation for all readers');assert(!prose.value.includes('\\forall'));prose.parentElement.remove();
+});
+test('disabling groups preserves existing symbols during further mathematical typing',async()=>{
+ const f=scratch();await type(f,'for all');f.setNotationGroups([]);await type(f,' x');assert.match(f.value,/\\forall/);assert.equal(f.mode,'math');assert.equal(f.errors.length,0);f.parentElement.remove();
+});
+
+test('iff is a conventional equivalence alias and its original abbreviation survives prose and history',async()=>{
+ const f=scratch();installPageHistory(f);await type(f,'iff ');f.pageHistory.flush();assert.match(f.value,/\\iff/);assert.equal(f.mode,'math');
+ const container=f.parentElement,latex=f.value,history=f.pageHistory.serialize();f.pageHistory.dispose();
+ const restored=createPageMathfield(container,latex,()=>{});installPageHistory(restored,history);
+ await type(restored,'a useful abbreviation');restored.pageHistory.flush();assert.equal(restored.getValue('plain-text'),'iff a useful abbreviation');assert.equal(restored.mode,'text');assert.equal(restored.errors.length,0);
+ while(!restored.value.includes('\\iff')&&restored.pageHistory.canUndo)restored.pageHistory.undo();assert.match(restored.value,/\\iff/);restored.pageHistory.dispose();container.remove();
+ const disabled=scratch();disabled.setNotationGroups(disabled.notationGroups.filter(id=>id!=='logic'));await type(disabled,'iff ');assert(!disabled.value.includes('\\iff'));assert.equal(disabled.mode,'text');disabled.parentElement.remove();
+});
+
+test('relational language converts after mathematical operands while prose stays literal',async()=>{
+ for(const [source,latex] of [['x is in A','\\in'],['x at most 5','\\le'],['n no greater than 7','\\le'],['y at least 2','\\ge'],['x is not an element of A','\\notin'],['A is a subset of B','\\subseteq'],['x less than y','<']]){
+  const f=scratch();await type(f,source);assert(f.value.includes(latex),source+': '+f.value);assert.equal(f.mode,'math',source);assert.equal(f.errors.length,0,source);f.parentElement.remove();
+ }
+ for(const source of ['The answer is in the notes','It is in the box','it is in','This takes at most five minutes','Use no greater than three words','is in','at most','The element of surprise','The lines are parallel to the road']){
+  const f=scratch();await type(f,source);assert.equal(f.getValue('plain-text'),source);assert.equal(f.mode,'text',source);assert(!/\\(?:in|le|ge|parallel)(?![A-Za-z])/.test(f.value),source+': '+f.value);assert(f.selectionIsCollapsed);f.parentElement.remove();
+ }
+});
+
+test('relation aliases preserve their wording through prose, persistent Undo/Redo, and reopening',async()=>{
+ for(const phrase of ['is in','at most','no greater than','is less than or equal to']){
+  const f=scratch();installPageHistory(f);await type(f,'x '+phrase);f.pageHistory.flush();const symbol=f.value;
+  await type(f,' a room');f.pageHistory.flush();assert.equal(f.getValue('plain-text'),'x '+phrase+' a room');
+  while(f.value!==symbol&&f.pageHistory.canUndo)f.pageHistory.undo();assert.equal(f.value,symbol);
+  const history=f.pageHistory.serialize(),container=f.parentElement;f.pageHistory.dispose();
+  const g=createPageMathfield(container,symbol,()=>{});installPageHistory(g,history);
+  await type(g,' a room');assert.equal(g.getValue('plain-text'),'x '+phrase+' a room');assert(g.selectionIsCollapsed);assert.equal(g.errors.length,0);g.pageHistory.dispose();container.remove();
+ }
+});
+
+test('all contextual aliases retain exact source wording after saving and reopening',async()=>{
+ const {NOTATION_GROUPS}=await import('../src/math-words.js');
+ for(const phrase of NOTATION_GROUPS.flatMap(g=>g.phrases).filter(p=>p.context)){
+  const f=scratch();installPageHistory(f);await type(f,'x '+phrase.text+' ');f.pageHistory.flush();
+  const latex=f.value,history=f.pageHistory.serialize(),container=f.parentElement;f.pageHistory.dispose();
+  const g=createPageMathfield(container,latex,()=>{});installPageHistory(g,history);
+  await type(g,'a useful explanation');assert.equal(g.getValue('plain-text'),'x '+phrase.text+' a useful explanation',phrase.text);assert.equal(g.errors.length,0);g.pageHistory.dispose();container.remove();
+ }
+});
+test('relations accept structural operands and disabled groups leave phrase text literal',async()=>{
+ for(const source of ['x^{2}','\\frac{1}{2}']){
+  const f=scratch();f.executeCommand(['insert',source,{format:'latex',mode:'math'}]);await type(f,' at most 5');assert.match(f.value,/\\le/);assert.equal(f.mode,'math');f.parentElement.remove();
+ }
+ const f=scratch();f.setNotationGroups([]);await type(f,'x is in A');assert.equal(f.getValue('plain-text'),'x is in A');assert(!f.value.includes('\\in'));f.parentElement.remove();
+});
+
+test('custom dictionary symbols and expressions obey context, revert to prose and survive page history',async()=>{
+ const definitions=[['belongs here','\\in'],['custom ratio','\\frac{1}{2}'],['custom root','\\sqrt{x}'],['boundary symbol','∂'],['custom arrow','\\xrightarrow{f}']];
+ for(const [text,latex] of definitions){
+  const f=scratch();f.setCustomDictionaries([{id:'example',name:'Example',enabled:true,entries:[{text,latex,enabled:true,context:true}]}]);installPageHistory(f);
+  await type(f,'x '+text);f.pageHistory.flush();assert.match(f.value,/\\mathord/);assert.equal(f.errors.length,0,text);const saved=f.value,history=f.pageHistory.serialize(),container=f.parentElement;f.pageHistory.dispose();
+  const g=createPageMathfield(container,saved,()=>{});g.setCustomDictionaries(f.customDictionaries);installPageHistory(g,history);await type(g,' a useful explanation');assert.equal(g.getValue('plain-text'),'x '+text+' a useful explanation',text);assert(g.selectionIsCollapsed);assert.equal(g.errors.length,0);g.pageHistory.dispose();container.remove();
+  const prose=scratch();prose.setCustomDictionaries(f.customDictionaries);await type(prose,'The answer '+text+' stays literal');assert.equal(prose.getValue('plain-text'),'The answer '+text+' stays literal');assert(!prose.value.includes('\\mathord'));prose.parentElement.remove();
+ }
+});
+test('custom single words wait for boundaries, explicit modes stay literal and disabling leaves existing math intact',async()=>{
+ const f=scratch();const libraries=[{id:'example',name:'Example',enabled:true,entries:[{text:'myalpha',latex:'\\alpha',context:false,enabled:true}]}];f.setCustomDictionaries(libraries);
+ await type(f,'myalpha');assert(!f.value.includes('\\mathord'));await type(f,' ');assert.match(f.value,/\\mathord/);assert.equal(f.errors.length,0);
+ libraries[0].enabled=false;f.setCustomDictionaries(libraries);await type(f,'x');assert.match(f.value,/\\mathord/);f.parentElement.remove();
+ const g=scratch();libraries[0].enabled=true;g.setCustomDictionaries(libraries);g.pageInputMode='text';g.mode='text';await type(g,'myalpha ');assert.equal(g.getValue('plain-text'),'myalpha ');assert(!g.value.includes('\\mathord'));g.parentElement.remove();
+ const h=scratch();libraries[0].enabled=false;h.setCustomDictionaries(libraries);await type(h,'myalpha ');assert(!h.value.includes('\\mathord'));h.parentElement.remove();
+});
+
+test('plain-language roots and fraction shorthand open templates with the caret ready to fill them',async()=>{
+ for(const [phrase,pattern] of [['square root',/\\sqrt/],['sqrt',/\\sqrt/],['cube root',/\\sqrt\[3\]/],['cbrt',/\\sqrt\[3\]/],['nth root',/\\sqrt/],['nthroot',/\\sqrt/],['fraction',/\\frac/],['frac',/\\frac/]]){
+  const f=scratch();installPageHistory(f);await type(f,phrase+' ');f.pageHistory.flush();assert.match(f.value,pattern,phrase);assert.equal(f.errors.length,0,phrase);
+  await type(f,'9');f.pageHistory.flush();assert.match(f.value,pattern,phrase);assert.match(f.value,/9/,phrase);assert.equal(f.errors.length,0,phrase);
+  if(['square root','sqrt','cube root','cbrt'].includes(phrase))assert.match(f.value,/\\sqrt(?:\[3\])?(?:\{9\}|9)/,phrase);
+  const filled=f.value;f.pageHistory.undo();assert.notEqual(f.value,filled,phrase);f.pageHistory.redo();assert.equal(f.value,filled,phrase);f.pageHistory.dispose();f.parentElement.remove();
+ }
+ for(const phrase of ['square root','cube root','fraction']){
+  const f=scratch();await type(f,'A useful explanation of the '+phrase+' notation');assert.equal(f.getValue('plain-text'),'A useful explanation of the '+phrase+' notation');assert(!/\\(?:sqrt|frac)/.test(f.value));f.parentElement.remove();
+ }
+ const f=scratch();f.setNotationGroups(f.notationGroups.filter(g=>g!=='calculus'));await type(f,'square root ');assert(!f.value.includes('\\sqrt'));f.parentElement.remove();
+});
+
+test('every toolbar math structure can be entered with ordinary words and no backslash',async()=>{
+ for(const [phrase,pattern] of [['integral',/\\int/],['sum',/\\sum/],['product',/\\prod/],['square root',/\\sqrt/],['fraction',/\\frac/],['matrix',/\\begin\{pmatrix\}/],['limit',/\\lim/],['absolute value',/\\left\|/],['ceiling',/\\lceil/],['floor',/\\lfloor/],['binomial coefficient',/\\binom/]]){
+  const f=scratch();await type(f,phrase+' ');assert.match(f.value,pattern,phrase);assert.equal(f.errors.length,0,phrase);f.parentElement.remove();
+ }
+ const {editorHints}=await import('../src/editor-hints.js');assert(!editorHints(true).includes('\\'));assert(!editorHints(false).includes('\\'));
+});
+
+test('dimensioned matrix words and saved structured dictionary entries create fillable matrices',async()=>{
+ for(const text of ['3x3 matrix','3×3 matrix','3 by 3 matrix','2x4 matrix']){
+  const f=scratch();installPageHistory(f);await type(f,text);const beforeSpace=f.value;await type(f,' ');f.pageHistory.flush();assert.match(f.value,/\\begin\{pmatrix\}/,text);assert.equal((f.value.match(/\\placeholder/g)||[]).length,text.startsWith('2')?8:9,text+': '+f.value+' before space: '+beforeSpace);assert.equal(f.errors.length,0,text);
+  await type(f,'7');f.pageHistory.flush();assert.match(f.value,/7/);const filled=f.value;f.pageHistory.undo();assert.notEqual(f.value,filled);f.pageHistory.redo();assert.equal(f.value,filled);f.pageHistory.dispose();f.parentElement.remove();
+ }
+ const f=scratch();f.setCustomDictionaries([{id:'matrices',name:'Matrices',entries:[{text:'3x3 matrix',notation:{kind:'matrix',rows:3,columns:3,fence:'bmatrix'},context:false}]}]);await type(f,'3x3 matrix ');assert.match(f.value,/\\begin\{bmatrix\}/);assert.equal((f.value.match(/\\placeholder/g)||[]).length,9);f.parentElement.remove();
+ const numeric=scratch();numeric.setCustomDictionaries([{id:'vectors',name:'Vectors',entries:[{text:'tensor2',notation:{kind:'matrix',rows:1,columns:3,fence:'bmatrix'},context:false}]}]);await type(numeric,'tensor2 ');assert.match(numeric.value,/\\begin\{bmatrix\}/);assert.equal((numeric.value.match(/\\placeholder/g)||[]).length,3);numeric.parentElement.remove();
+ const prose=scratch();await type(prose,'We use a 3 by 3 matrix here');assert.equal(prose.getValue('plain-text'),'We use a 3 by 3 matrix here');assert(!prose.value.includes('\\begin{pmatrix}'));prose.parentElement.remove();
+ const disabled=scratch();disabled.setNotationGroups(disabled.notationGroups.filter(g=>g!=='linear'));await type(disabled,'3x3 matrix ');assert(!disabled.value.includes('\\begin'));disabled.parentElement.remove();
+});

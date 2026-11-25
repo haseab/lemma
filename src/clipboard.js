@@ -17,7 +17,7 @@ export function insertClipboard(field,types,{onError=()=>{}}={}){
  try{
   let value;
   if(latex||field.pageInputMode!=='text'&&looksLikeLatex(source))value=importLatex(source);
-  else if(field.pageInputMode==='text'||looksLikeProse(source))value=mixedTextToLatex(source);
+  else if(field.pageInputMode==='text'||looksLikeProse(source,field.notationGroups,field.customDictionaries))value=mixedTextToLatex(source);
   else value=source;
   if(validateLatex(value).length)throw Error('Pasted content contains unsupported or incomplete LaTeX. The current selection was preserved.');
   field.proseSuspended=true;

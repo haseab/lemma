@@ -40,25 +40,25 @@ test('bundled renderer boots, searches, replaces, imports source, saves history 
 
 test('desktop tabs add pages, retain independent history, and reopen the selected page',async()=>{
  const fixture={version:2,activeId:'first',documents:[{id:'first',title:'First page',updatedAt:1,content:{type:'math-page',latex:'x+1',mode:'auto'}},{id:'second',title:'Second page',updatedAt:1,content:{type:'math-page',latex:'z+1',mode:'auto'}}]};
- const app=await boot(fixture,'desktop-tabs');assert.equal(app.browser.document.querySelectorAll('[role="tab"]').length,2);
- app.$('#new-tab').click();assert.equal(app.browser.document.querySelectorAll('[role="tab"]').length,3);const id=app.$('[role="tab"][aria-selected="true"]').dataset.pageId;
- app.$('[role="tab"][aria-selected="true"]').dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true}));app.$('[data-tab-action="rename"]').click();app.$('#title').value='Working notes';app.$('#title').dispatchEvent(new Event('input'));app.$('#title').blur();
+ const app=await boot(fixture,'desktop-tabs');assert.equal(app.browser.document.querySelectorAll('[role="tab"][data-page-id]').length,2);
+ app.$('#new-tab').click();assert.equal(app.browser.document.querySelectorAll('[role="tab"][data-page-id]').length,3);const id=app.$('[role="tab"][data-page-id][aria-selected="true"]').dataset.pageId;
+ app.$('[role="tab"][data-page-id][aria-selected="true"]').dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true}));app.$('[data-tab-action="rename"]').click();app.$('#title').value='Working notes';app.$('#title').dispatchEvent(new Event('input'));app.$('#title').blur();
  app.$('#source-open').click();app.$('#source-value').value='y^3';app.$('#source-value').dispatchEvent(new Event('input'));await wait(35);
- [...app.browser.document.querySelectorAll('[role="tab"]')].find(b=>b.dataset.pageId==='first').click();assert.equal(app.$('#math-page').value,'x+1');
- [...app.browser.document.querySelectorAll('[role="tab"]')].find(b=>b.dataset.pageId===id).click();assert.equal(app.$('#math-page').value,'y^3');await app.close();
- const reopened=await boot(app.calls.saved,'desktop-tabs-reload');assert.equal(reopened.$('[role="tab"][aria-selected="true"]').dataset.pageId,id);assert.equal(reopened.$('[role="tab"][aria-selected="true"]').textContent,'Working notes');assert.equal(reopened.$('#math-page').value,'y^3');reopened.$('#undo').click();assert.equal(reopened.$('#math-page').getValue('plain-text'),'');await reopened.close();
+ [...app.browser.document.querySelectorAll('[role="tab"][data-page-id]')].find(b=>b.dataset.pageId==='first').click();assert.equal(app.$('#math-page').value,'x+1');
+ [...app.browser.document.querySelectorAll('[role="tab"][data-page-id]')].find(b=>b.dataset.pageId===id).click();assert.equal(app.$('#math-page').value,'y^3');await app.close();
+ const reopened=await boot(app.calls.saved,'desktop-tabs-reload');assert.equal(reopened.$('[role="tab"][data-page-id][aria-selected="true"]').dataset.pageId,id);assert.equal(reopened.$('[role="tab"][data-page-id][aria-selected="true"]').textContent,'Working notes');assert.equal(reopened.$('#math-page').value,'y^3');reopened.$('#undo').click();assert.equal(reopened.$('#math-page').getValue('plain-text'),'');await reopened.close();
 });
 
 test('desktop close prompts before deleting content and persists the remaining page',async()=>{
  const fixture={version:2,activeId:'first',documents:[{id:'first',title:'Protected page',updatedAt:1,content:{type:'math-page',latex:'x+1',mode:'auto'}}]};
  const app=await boot(fixture,'desktop-close');app.$('[data-close-page="first"]').click();assert(app.$('#close-page-dialog').open);app.$('[data-cancel]').click();await wait(5);assert.equal(app.$('#math-page').value,'x+1');
- app.$('#new-tab').click();const empty=app.$('[role="tab"][aria-selected="true"]').dataset.pageId;app.$(`[data-close-page="${empty}"]`).click();assert.equal(app.$('#close-page-dialog'),null);assert.equal(app.$('#math-page').value,'x+1');
- app.$('[data-close-page="first"]').click();app.$('[data-confirm]').click();await wait(5);assert.equal(app.browser.document.querySelectorAll('[role="tab"]').length,1);assert.equal(app.$('#math-page').getValue('plain-text'),'');await app.close();
+ app.$('#new-tab').click();const empty=app.$('[role="tab"][data-page-id][aria-selected="true"]').dataset.pageId;app.$(`[data-close-page="${empty}"]`).click();assert.equal(app.$('#close-page-dialog'),null);assert.equal(app.$('#math-page').value,'x+1');
+ app.$('[data-close-page="first"]').click();app.$('[data-confirm]').click();await wait(5);assert.equal(app.browser.document.querySelectorAll('[role="tab"][data-page-id]').length,1);assert.equal(app.$('#math-page').getValue('plain-text'),'');await app.close();
  assert.equal(app.calls.saved.documents.length,1);assert.notEqual(app.calls.saved.documents[0].id,'first');
 });
 
 test('desktop context menu duplicates the targeted page without sharing its content or undo',async()=>{
  const fixture={version:2,activeId:'first',documents:[{id:'first',title:'Original',updatedAt:1,content:{type:'math-page',latex:'x+1',mode:'auto'}}]};
- const app=await boot(fixture,'desktop-context-copy');app.$('[role="tab"]').dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:100,clientY:100}));app.$('[data-tab-action="duplicate"]').click();assert.equal(app.browser.document.querySelectorAll('[role="tab"]').length,2);assert.equal(app.$('#math-page').value,'x+1');assert.equal(app.$('#math-page').pageHistory.canUndo,false);
- app.$('#source-open').click();app.$('#source-value').value='z+2';app.$('#source-value').dispatchEvent(new Event('input'));await wait(30);[...app.browser.document.querySelectorAll('[role="tab"]')].find(b=>b.dataset.pageId==='first').click();assert.equal(app.$('#math-page').value,'x+1');await app.close();assert.equal(app.calls.saved.documents[1].content.latex,'z+2');
+ const app=await boot(fixture,'desktop-context-copy');app.$('[role="tab"][data-page-id]').dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:100,clientY:100}));app.$('[data-tab-action="duplicate"]').click();assert.equal(app.browser.document.querySelectorAll('[role="tab"][data-page-id]').length,2);assert.equal(app.$('#math-page').value,'x+1');assert.equal(app.$('#math-page').pageHistory.canUndo,false);
+ app.$('#source-open').click();app.$('#source-value').value='z+2';app.$('#source-value').dispatchEvent(new Event('input'));await wait(30);[...app.browser.document.querySelectorAll('[role="tab"][data-page-id]')].find(b=>b.dataset.pageId==='first').click();assert.equal(app.$('#math-page').value,'x+1');await app.close();assert.equal(app.calls.saved.documents[1].content.latex,'z+2');
 });
