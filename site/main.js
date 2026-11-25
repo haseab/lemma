@@ -1,3 +1,4 @@
+import {installTooltips} from '../src/tooltips.js';
 import {createPageTabs} from '../src/page-tabs.js';
 import 'mathlive/static.css';
 import {brandMark} from '../src/brand.js';
@@ -20,6 +21,7 @@ createIcons({icons:{Github,Star,ArrowUpRight,FileText,FolderOpen,Download,Bold,I
 const $=s=>document.querySelector(s);
 for(const mark of document.querySelectorAll('[data-brand-mark]'))mark.innerHTML=brandMark;
 installFullscreen(document.documentElement,$('#fullscreen'));
+installTooltips(document);
 let toastTimer;function toast(message){$('#toast').textContent=message;$('#toast').classList.add('visible');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('#toast').classList.remove('visible'),5500);}
 const first=freshDocument('Untitled page');
 let notebook={version:2,activeId:first.id,documents:[first]},page=first,blocked=false;
