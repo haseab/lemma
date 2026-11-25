@@ -55,3 +55,9 @@ test('desktop close prompts before deleting content and persists the remaining p
  app.$('[data-close-page="first"]').click();app.$('[data-confirm]').click();await wait(5);assert.equal(app.browser.document.querySelectorAll('[role="tab"]').length,1);assert.equal(app.$('#math-page').getValue('plain-text'),'');await app.close();
  assert.equal(app.calls.saved.documents.length,1);assert.notEqual(app.calls.saved.documents[0].id,'first');
 });
+
+test('desktop context menu duplicates the targeted page without sharing its content or undo',async()=>{
+ const fixture={version:2,activeId:'first',documents:[{id:'first',title:'Original',updatedAt:1,content:{type:'math-page',latex:'x+1',mode:'auto'}}]};
+ const app=await boot(fixture,'desktop-context-copy');app.$('[role="tab"]').dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:100,clientY:100}));app.$('[data-tab-action="duplicate"]').click();assert.equal(app.browser.document.querySelectorAll('[role="tab"]').length,2);assert.equal(app.$('#math-page').value,'x+1');assert.equal(app.$('#math-page').pageHistory.canUndo,false);
+ app.$('#source-open').click();app.$('#source-value').value='z+2';app.$('#source-apply').click();await wait(30);[...app.browser.document.querySelectorAll('[role="tab"]')].find(b=>b.dataset.pageId==='first').click();assert.equal(app.$('#math-page').value,'x+1');await app.close();assert.equal(app.calls.saved.documents[1].content.latex,'z+2');
+});

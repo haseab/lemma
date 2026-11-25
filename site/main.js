@@ -7,7 +7,7 @@ import {validateLatex} from 'mathlive';
 import {createIcons,Github,Star,ArrowUpRight,FileText,FolderOpen,Download,Bold,Italic,Undo2,Redo2,CodeXml,CircleHelp,Plus,Eraser,Maximize2,Minimize2} from 'lucide';
 import {MathfieldElement,createPageMathfield} from '../src/page-editor.js';
 import {installPageHistory} from '../src/history.js';
-import {EMPTY_PAGE,validateDocument,freshDocument} from '../src/document.js';
+import {EMPTY_PAGE,validateDocument,freshDocument,duplicateDocument} from '../src/document.js';
 import {templates} from '../src/templates.js';
 import {FONTS,applyFormatting} from '../src/formatting.js';
 import {importLatex,importPageFile,exportLatex} from '../src/formats.js';
@@ -25,7 +25,7 @@ const first=freshDocument('Untitled page');
 let notebook={version:2,activeId:first.id,documents:[first]},page=first,blocked=false;
 try{const loaded=loadScratchpad(localStorage);if(loaded.page)notebook=loaded.page;if(loaded.recovered)toast('Recovered your previous saved copy.');}catch(error){blocked=true;toast(error.message);}
 let field,saveTimer,selection,loading=false;
-const tabs=createPageTabs($('#page-tabs'),{onSelect:switchPage,onNew:newPage,onClose:closePage,getPage:id=>{capture();return notebook.documents.find(d=>d.id===id);}});
+const tabs=createPageTabs($('#page-tabs'),{onSelect:switchPage,onNew:newPage,onClose:closePage,onDuplicate:duplicatePage,getPage:id=>{capture();return notebook.documents.find(d=>d.id===id);}});
 function updateEmpty(){ $('#scratchpad').classList.toggle('has-content',!!field.getValue('plain-text').trim()); }
 function capture(){if(!field||loading)return;page.title=$('#title').value||'Untitled page';page.content={type:'math-page',latex:field.value,mode:page.content.mode};page.history=field.pageHistory.serialize();page.updatedAt=Date.now();}
 function save(){
@@ -46,6 +46,10 @@ function switchPage(id){
  field.addEventListener('keydown',e=>{if(e.key==='Escape'&&field.mode!=='latex'){e.preventDefault();e.stopPropagation();document.querySelector('[data-mode="auto"]').focus();}},true);
  mode(page.content.mode,false);selection=null;loading=false;updateEmpty();tabs.render(notebook.documents,notebook.activeId);
  if(switching){save();field.focus();}
+}
+function duplicatePage(id){
+ capture();const index=notebook.documents.findIndex(d=>d.id===id);if(index<0)return;if(notebook.documents.length>=1000){toast('Page limit reached.');return;}
+ const copy=duplicateDocument(notebook.documents[index]);notebook.documents.splice(index+1,0,copy);switchPage(copy.id);
 }
 function closePage(id){
  capture();const index=notebook.documents.findIndex(d=>d.id===id);if(index<0)return;

@@ -27,3 +27,14 @@ test('empty rows and prose whitespace are blank, while equations and empty math 
  for(const value of ['',' ','\\displaylines{}','\\displaylines{\\\\}','\\displaylines{\\text{ }}'])assert.equal(pageHasContent(value),false);
  for(const value of ['x+1','\\text{A note}','\\frac{}{}','x^{}','\\sqrt{}'])assert.equal(pageHasContent(value),true);
 });
+
+test('tab context menu targets the clicked page, supports keyboard dismissal, and confirms deletion',async()=>{
+ const browser=new Window(),d=browser.document;d.body.innerHTML='<div id="tabs"><input id="title" value="First"></div><div id="surface"></div>';
+ const pages=[{id:'first',title:'First',content:{latex:'x+1'}},{id:'second',title:'Second',content:{latex:''}}],duplicated=[],removed=[],selected=[];
+ const tabs=createPageTabs(d.querySelector('#tabs'),{onSelect:id=>selected.push(id),onNew:()=>{},onDuplicate:id=>duplicated.push(id),onClose:id=>removed.push(id)});tabs.render(pages,'first');
+ const rightClick=id=>d.querySelector(`[data-page-id="${id}"]`).dispatchEvent(new browser.MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:100,clientY:100}));
+ rightClick('second');assert(d.querySelector('[role="menu"]'));assert.deepEqual(selected,[]);d.querySelector('[data-tab-action="duplicate"]').click();assert.deepEqual(duplicated,['second']);assert.equal(d.querySelector('[role="menu"]'),null);
+ d.querySelector('[role="tab"]').dispatchEvent(new browser.KeyboardEvent('keydown',{key:'ContextMenu',bubbles:true,cancelable:true}));const menu=d.querySelector('[role="menu"]');menu.dispatchEvent(new browser.KeyboardEvent('keydown',{key:'ArrowDown',bubbles:true,cancelable:true}));assert.equal(d.activeElement.dataset.tabAction,'delete');menu.dispatchEvent(new browser.KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}));assert.equal(d.querySelector('[role="menu"]'),null);assert.equal(d.activeElement.dataset.pageId,'first');
+ rightClick('first');d.querySelector('[data-tab-action="delete"]').click();assert.equal(d.querySelector('#close-page-heading').textContent,'Delete this page?');assert.deepEqual(removed,[]);d.querySelector('[data-cancel]').click();await Promise.resolve();assert.deepEqual(removed,[]);
+ rightClick('first');d.querySelector('[data-tab-action="delete"]').click();d.querySelector('[data-confirm]').click();await Promise.resolve();assert.deepEqual(removed,['first']);await browser.happyDOM.close();
+});

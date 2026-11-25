@@ -9,7 +9,7 @@ import {findMatches,replaceMatch,replaceAll} from './find.js';
 import {importPageFile,importLatex,exportLatex,readableSelection} from './formats.js';
 import {MathfieldElement,createPageMathfield} from './page-editor.js';
 import {createIcons,icons} from 'lucide';
-import {EMPTY_PAGE,freshDocument,validateNotebook,validateDocument} from './document.js';
+import {EMPTY_PAGE,freshDocument,validateNotebook,validateDocument,duplicateDocument} from './document.js';
 import {FONTS,FONT_SIZES,applyFormatting} from './formatting.js';
 import './style.css';
 MathfieldElement.fontsDirectory=new URL('./fonts',document.baseURI).href;
@@ -52,7 +52,11 @@ async function persist(){
   if(rev===revision&&capturedEdit===editRevision){$('#save-status').textContent='All changes saved';dirty=false;failures=0;}return true;
  }catch{if(!failures)toast('Save failed. Your previous file is preserved. Retrying automatically; export a copy before closing.');failures++;$('#save-status').textContent='Save failed · retrying';return false;}
 }
-const tabs=createPageTabs($('#page-tabs'),{onSelect:id=>switchDocument(id),onNew:()=>actions.new(),onClose:closePage,getPage:id=>{capture();return notebook.documents.find(d=>d.id===id);}});
+const tabs=createPageTabs($('#page-tabs'),{onSelect:id=>switchDocument(id),onNew:()=>actions.new(),onClose:closePage,onDuplicate:duplicatePage,getPage:id=>{capture();return notebook.documents.find(d=>d.id===id);}});
+function duplicatePage(id){
+ capture();const index=notebook.documents.findIndex(d=>d.id===id);if(index<0)return;if(notebook.documents.length>=1000){toast('Page limit reached.');return;}
+ const copy=duplicateDocument(notebook.documents[index]);notebook.documents.splice(index+1,0,copy);switchDocument(copy.id);scheduleSave();
+}
 function closePage(id){
  capture();const index=notebook.documents.findIndex(d=>d.id===id);if(index<0)return;
  const selected=id===notebook.activeId;notebook.documents.splice(index,1);

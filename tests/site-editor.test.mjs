@@ -61,3 +61,10 @@ test('web close confirmation preserves cancelled pages, removes accepted pages, 
  const saved=await app.close();assert.equal(JSON.parse(saved).documents.length,1);assert(!JSON.parse(saved).documents.some(d=>d.id===first));
  const restored=await boot(saved,'closed-tabs-reload');assert.equal(restored.$('#math-page').getValue('plain-text'),'');await restored.close();
 });
+
+test('web context duplication uses current edits, isolates the copy, and persists both pages',async()=>{
+ const app=await boot(null,'context-copy');app.$('#source-open').click();app.$('#source-value').value='x^2';app.$('#source-apply').click();
+ const original=app.$('[role="tab"]').dataset.pageId;app.$('[role="tab"]').dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:100,clientY:100}));app.$('[data-tab-action="duplicate"]').click();assert.equal(app.browser.document.querySelectorAll('[role="tab"]').length,2);assert.equal(app.$('#math-page').value,'x^2');assert.match(app.$('[role="tab"][aria-selected="true"]').textContent,/copy$/);
+ app.$('#source-open').click();app.$('#source-value').value='y^3';app.$('#source-apply').click();await wait(30);
+ [...app.browser.document.querySelectorAll('[role="tab"]')].find(b=>b.dataset.pageId===original).click();assert.equal(app.$('#math-page').value,'x^2');const saved=await app.close();assert.equal(JSON.parse(saved).documents.length,2);assert.equal(JSON.parse(saved).documents[1].content.latex,'y^3');
+});
