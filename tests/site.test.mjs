@@ -65,3 +65,15 @@ test('header download works without a download section and switches from release
  const url=fallback+'/download/v1/windows.zip';updatePlatformLinks(d,'windows',{windows:{url}},fallback);assert.equal(d.querySelector('a').getAttribute('href'),url);
  updatePlatformLinks(d,null,{},fallback);assert.equal(d.querySelector('a').getAttribute('href'),fallback);await browser.happyDOM.close();
 });
+
+const {loadGitHubStars}=await import('../site/github-stars.js');
+test('GitHub badge uses live star counts including zero and keeps its link on API failure',async()=>{
+ const browser=new Window(),d=browser.document;d.body.innerHTML='<a href="https://github.com/example/lemma"><span class="github-stars" hidden><span data-star-count></span></span></a>';const link=d.querySelector('a');
+ let requested;
+ await loadGitHubStars(link,repository,async url=>{requested=url;return {ok:true,json:async()=>({stargazers_count:1234})};});
+ assert.equal(requested,'https://api.github.com/repos/example/lemma');assert.equal(link.querySelector('[data-star-count]').textContent,'1,234');assert.equal(link.querySelector('.github-stars').hidden,false);assert.match(link.getAttribute('aria-label'),/1,234 stars/);
+ await loadGitHubStars(link,repository,async()=>({ok:true,json:async()=>({stargazers_count:0})}));assert.equal(link.querySelector('[data-star-count]').textContent,'0');
+ link.querySelector('.github-stars').hidden=true;
+ for(const fetcher of [async()=>({ok:false}),async()=>{throw Error('Offline');},async()=>({ok:true,json:async()=>({stargazers_count:'invalid'})})]){await loadGitHubStars(link,repository,fetcher);assert.equal(link.querySelector('.github-stars').hidden,true);assert.equal(link.getAttribute('href'),repository.url);}
+ await browser.happyDOM.close();
+});
