@@ -48,5 +48,5 @@ test('notarization supports Keychain or runtime credentials and rejects incomple
 
 
 test('www redirects to the configured primary origin so local pages use one browser storage origin',async()=>{
- const f=fixture();f.env.CANONICAL_HOST='example.org';const response=await worker.fetch(new Request('https://www.example.org/stats.html?days=7'),f.env,{waitUntil:()=>{}});assert.equal(response.status,308);assert.equal(response.headers.get('Location'),'https://example.org/stats.html?days=7');f.close();
+ const f=fixture();f.env.CANONICAL_HOST='example.org';const response=await worker.fetch(new Request('https://www.example.org/stats.html?days=7'),f.env,{waitUntil:()=>{}});assert.equal(response.status,308);assert.equal(response.headers.get('Location'),'https://example.org/stats.html?days=7');const secure=await worker.fetch(new Request('http://example.org/'),f.env,{waitUntil:()=>{}});assert.equal(secure.headers.get('Location'),'https://example.org/');f.close();
 });
