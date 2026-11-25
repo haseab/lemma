@@ -8,3 +8,9 @@ test('legacy text is escaped so literal braces and TeX cannot become equation co
 test('unsupported legacy content and oversized pages are rejected',()=>{assert.throws(()=>validateDocument({type:'doc',content:[{type:'script'}]}));assert.throws(()=>validateDocument({type:'math-page',latex:'x'.repeat(2_000_001)}));});
 test('duplicate IDs cannot overwrite another page',()=>{const d=freshDocument();assert.throws(()=>validateNotebook({version:2,documents:[d,d]}));});
 test('invalid active ID recovers to first page',()=>{const d=freshDocument();assert.equal(validateNotebook({version:2,activeId:'missing',documents:[d]}).activeId,d.id);});
+
+test('duplicating a page preserves formatting and mode in an independent page with fresh undo history',async()=>{
+ const {duplicateDocument}=await import('../src/document.js');const source=freshDocument('Example');source.content={type:'math-page',latex:'\\textbf{A note} x^2',mode:'text'};source.history={entries:[{latex:'old'}]};source.legacyContent={type:'doc',content:[]};
+ const copy=duplicateDocument(source);assert.notEqual(copy.id,source.id);assert.equal(copy.title,'Example copy');assert.deepEqual(copy.content,source.content);assert.notEqual(copy.content,source.content);assert.notEqual(copy.legacyContent,source.legacyContent);assert.equal(copy.history,undefined);
+ copy.content.latex='changed';assert.equal(source.content.latex,'\\textbf{A note} x^2');assert.equal(duplicateDocument({...source,title:'A'.repeat(200)}).title.length,200);
+});

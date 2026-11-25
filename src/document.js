@@ -1,3 +1,4 @@
+import {validateHistory} from './history.js';
 import {validateDocument as validateLegacy} from './legacy-document.js';
 export const EMPTY_PAGE='\\displaylines{}';
 function escapeText(text){return text.replace(/[\\{}$&#%_^~]/g,c=>({'\\':'\\textbackslash{}','{':'\\{','}':'\\}','$':'\\$','&':'\\&','#':'\\#','%':'\\%','_':'\\_','^':'\\textasciicircum{}','~':'\\textasciitilde{}'}[c]));}
@@ -17,7 +18,14 @@ export function validateDocument(value){
 }
 export function freshDocument(title='Untitled canvas'){return {id:crypto.randomUUID(),title,updatedAt:Date.now(),content:{type:'math-page',latex:EMPTY_PAGE,mode:'auto'}};}
 export function validateNotebook(data){
- if(![1,2].includes(data?.version)||!Array.isArray(data.documents)||!data.documents.length||data.documents.length>1000)throw Error('Invalid notebook');
- const ids=new Set();const documents=data.documents.map(d=>{if(typeof d.id!=='string'||ids.has(d.id))throw Error('Invalid document ID');ids.add(d.id);const result={id:d.id,title:String(d.title||'Untitled canvas').slice(0,200),updatedAt:Number(d.updatedAt)||Date.now(),content:validateDocument(d.content)};const legacy=d.content?.type==='doc'?d.content:d.legacyContent;if(legacy)result.legacyContent=validateLegacy(legacy);return result;});
+ if(![1,2,3].includes(data?.version)||!Array.isArray(data.documents)||!data.documents.length||data.documents.length>1000)throw Error('Invalid notebook');
+ const ids=new Set();const documents=data.documents.map(d=>{if(typeof d.id!=='string'||ids.has(d.id))throw Error('Invalid document ID');ids.add(d.id);const result={id:d.id,title:String(d.title||'Untitled canvas').slice(0,200),updatedAt:Number(d.updatedAt)||Date.now(),content:validateDocument(d.content)};const legacy=d.content?.type==='doc'?d.content:d.legacyContent;if(legacy)result.legacyContent=validateLegacy(legacy);const history=validateHistory(d.history,result.content.latex);if(history)result.history=history;return result;});
  return {version:2,activeId:ids.has(data.activeId)?data.activeId:documents[0].id,documents};
+}
+
+export function duplicateDocument(source){
+ const copy=freshDocument(source.title.slice(0,195)+' copy');
+ copy.content=structuredClone(source.content);
+ if(source.legacyContent)copy.legacyContent=structuredClone(source.legacyContent);
+ return copy;
 }

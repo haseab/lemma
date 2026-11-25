@@ -1,3 +1,4 @@
+import {insertPageBreak} from './editing.js';
 // Recognize words, rather than repeatedly guessing whether each character is math.
 // Once a run becomes prose, its numbers and punctuation remain prose until a
 // newline or an explicit backtick math span. Deletion re-evaluates the run
@@ -59,7 +60,7 @@ export function installProseInput(field){
  field.resetProseInput=()=>{explicitMath=false;updateShortcuts();};
  updateShortcuts();
  field.addEventListener('input',event=>{
-  if(converting||field.pageInputMode!=='auto'||explicitMath||field.mode==='latex'||!field.selectionIsCollapsed)return;
+  if(converting||field.proseSuspended||field.pageInputMode!=='auto'||explicitMath||field.mode==='latex'||!field.selectionIsCollapsed)return;
   const deletion=/^delete/.test(event.inputType||'');
   if(event.inputType&&!deletion&&!['insertText','insertFromPaste'].includes(event.inputType))return;
   const run=connectedRun(field,deletion),prose=looksLikeProse(run.text);
@@ -67,7 +68,7 @@ export function installProseInput(field){
   if(!prose&&!deletion)return;
   // Keep LaTeX style wrappers while changing the literal run to text. No
   // serialized whole-page replacement, so surrounding math stays untouched.
-  converting=true;
+  converting=true;field.proseConverting=true;
   try{
    if(prose?run.hasMath:run.hasText){
     const cursor=field.position-run.start;
@@ -99,7 +100,7 @@ export function installProseInput(field){
     if(replaced&&state)state.mode=editor.model.mode;
     field.position=field.position;
    }else field.mode=prose?'text':'math';
-  }finally{converting=false;}
+  }finally{converting=false;field.proseConverting=false;}
  });
  field.addEventListener('keydown',event=>{
   if(field.pageInputMode!=='auto'||event.metaKey||event.ctrlKey||event.altKey||event.isComposing||field.mode==='latex')return;
@@ -126,7 +127,7 @@ export function installProseInput(field){
    field.mode=explicitMath?'math':'text';
   }else if(event.key==='Enter'){
    event.preventDefault();event.stopImmediatePropagation();
-   field.executeCommand('addRowAfter');explicitMath=false;updateShortcuts();field.mode='math';
+   insertPageBreak(field);explicitMath=false;updateShortcuts();field.mode='math';
   }else if(event.key===' '&&field.mode==='math'&&!explicitMath){
    // MathLive normally discards ordinary math spaces. Retain them so earlier
    // short words can become part of a subsequently recognized sentence.
