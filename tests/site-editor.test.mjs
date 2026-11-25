@@ -43,7 +43,7 @@ test('browser tabs migrate an existing page, isolate edits and undo, rename, and
  const legacy={version:1,title:'Existing page',content:{type:'math-page',latex:'x^2',mode:'auto'},history:{version:1,index:1,entries:[{latex:'x',typingMode:'math',selection:{ranges:[[1,1]]}},{latex:'x^2',typingMode:'math',selection:{ranges:[[1,1]]}}]}};
  const app=await boot(JSON.stringify(legacy),'tabs');assert.equal(app.$('[role="tab"]').textContent,'Existing page');const firstId=app.$('[role="tab"]').dataset.pageId;
  app.$('#new-tab').click();assert.equal(app.browser.document.querySelectorAll('[role="tab"]').length,2);assert.equal(app.$('#math-page').getValue('plain-text'),'');
- app.$('[role="tab"][aria-selected="true"]').dispatchEvent(new MouseEvent('dblclick',{bubbles:true}));assert.equal(app.$('#title').hidden,false);app.$('#title').value='Second page';app.$('#title').dispatchEvent(new Event('input'));app.$('#title').blur();assert.equal(app.$('#title').hidden,true);
+ app.$('[role="tab"][aria-selected="true"]').dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true}));app.$('[data-tab-action="rename"]').click();assert.equal(app.$('#title').hidden,false);app.$('#title').value='Second page';app.$('#title').dispatchEvent(new Event('input'));app.$('#title').blur();assert.equal(app.$('#title').hidden,true);
  app.$('#source-open').click();app.$('#source-value').value='y+2';app.$('#source-apply').click();await wait(30);
  [...app.browser.document.querySelectorAll('[role="tab"]')].find(b=>b.dataset.pageId===firstId).click();assert.equal(app.$('#math-page').value,'x^2');app.$('#undo').click();assert.equal(app.$('#math-page').value,'x');
  const saved=await app.close();assert.equal(JSON.parse(saved).documents.length,2);

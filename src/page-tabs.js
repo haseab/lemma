@@ -6,7 +6,7 @@ export function createPageTabs(root,{onSelect,onNew,onClose,onDuplicate,getPage,
  function closeMenu(restore=false){if(!menu)return;menu.remove();menu=null;if(restore)buttons.get(menuTarget)?.focus();}
  function openMenu(id,x,y){
   closeMenu();menuTarget=id;menu=doc.createElement('div');menu.className='tab-context-menu';menu.setAttribute('role','menu');menu.setAttribute('aria-label','Page actions');
-  for(const [action,label,handler] of [['duplicate','Duplicate page',()=>onDuplicate?.(id)],['delete','Delete page',()=>{void requestClose(id,'Delete');}]]){
+  for(const [action,label,handler] of [['rename','Rename page',()=>renamePage(id)],['duplicate','Duplicate page',()=>onDuplicate?.(id)],['delete','Delete page',()=>{void requestClose(id,'Delete');}]]){
    if(action==='duplicate'&&!onDuplicate||action==='delete'&&!onClose)continue;
    const item=doc.createElement('button');item.type='button';item.setAttribute('role','menuitem');item.dataset.tabAction=action;item.textContent=label;item.onclick=()=>{closeMenu();handler();};menu.append(item);
   }
@@ -32,6 +32,11 @@ export function createPageTabs(root,{onSelect,onNew,onClose,onDuplicate,getPage,
   event.preventDefault();if(event.key==='Escape'){title.value=original;title.dispatchEvent(new doc.defaultView.Event('input',{bubbles:true}));}
   finish();buttons.get(activeId)?.focus();
  });
+ function renamePage(id){
+  if(id!==activeId)onSelect(id);
+  const button=buttons.get(id);if(id!==activeId||!button)return;
+  original=title.value;editing=true;title.hidden=false;button.hidden=true;button.parentElement.insertBefore(title,button);title.focus();title.select();
+ }
  function render(next,id){
   closeMenu();
   if(editing&&activeId===id&&pages.map(p=>p.id).join('\0')===next.map(p=>p.id).join('\0'))return;
@@ -39,7 +44,7 @@ export function createPageTabs(root,{onSelect,onNew,onClose,onDuplicate,getPage,
   for(const page of pages){
    const button=doc.createElement('button');button.type='button';button.className='page-tab';button.dataset.pageId=page.id;button.id='page-tab-'+encodeURIComponent(page.id);button.setAttribute('role','tab');button.setAttribute('aria-controls',panelId);button.setAttribute('aria-selected',String(page.id===activeId));button.tabIndex=page.id===activeId?0:-1;button.textContent=page.title||'Untitled page';button.title='Double-click to rename';
    button.onclick=()=>{if(page.id!==activeId)onSelect(page.id);};
-   button.ondblclick=()=>{if(page.id!==activeId)return;original=title.value;editing=true;title.hidden=false;button.hidden=true;button.parentElement.insertBefore(title,button);title.focus();title.select();};
+   button.ondblclick=()=>renamePage(page.id);
    button.onkeydown=event=>{
     if(event.key==='ContextMenu'||event.shiftKey&&event.key==='F10'){event.preventDefault();const rect=button.getBoundingClientRect();openMenu(page.id,rect.left,rect.bottom);return;}
     if(event.key==='Delete'){event.preventDefault();void requestClose(page.id);return;}
