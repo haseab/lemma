@@ -11,7 +11,11 @@
     "build": "node scripts/notices.mjs && vite build",
     "start": "electron .",
     "test": "node --conditions=browser --conditions=development --test tests/*.test.mjs",
-    "package": "npm run build && electron-packager . Lemma --platform=darwin --arch=arm64 --out=deliverables --overwrite --ignore='^/(release|deliverables|tests|scripts|src|node_modules)(/|$)' --prune=false --app-bundle-id=app.folio.math --app-category-type=public.app-category.productivity --icon=assets/Lemma.icns --extend-info=assets/document-types.plist && node scripts/sign.mjs"
+    "package": "npm run package:mac",
+    "package:mac": "npm run build && node scripts/package-desktop.mjs darwin arm64",
+    "package:windows": "npm run build && node scripts/package-desktop.mjs win32 x64",
+    "site:build": "vite build --config site/vite.config.js",
+    "site:dev": "vite --config site/vite.config.js --host 0.0.0.0"
   },
   "dependencies": {
     "lucide": "0.468.0",

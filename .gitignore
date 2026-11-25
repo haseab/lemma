@@ -24,3 +24,7 @@ deliverables/
 notebook.json*
 *.before-*
 *.tmp
+
+# Standalone website output and local hosting identity
+site-dist/
+.openai/

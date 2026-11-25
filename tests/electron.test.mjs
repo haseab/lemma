@@ -7,17 +7,17 @@ import os from 'node:os';
 import vm from 'node:vm';
 import {createRequire} from 'node:module';
 const require=createRequire(new URL('../electron/main.cjs',import.meta.url));
-async function harness(t){
+async function harness(t,platform='darwin'){
  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'lemma-electron-test-'));t.after(()=>fs.rm(dir,{recursive:true,force:true}));
  const handlers=new Map(),sent=[],app=new EventEmitter();let ready=false,resolveReady;
  Object.assign(app,{getPath:()=>dir,setPath:()=>{},setName:()=>{},whenReady:()=>new Promise(resolve=>{resolveReady=resolve;}),isReady:()=>ready,requestSingleInstanceLock:()=>true,quit:()=>{}});
  class Window extends EventEmitter{
   static windows=[];static getAllWindows(){return this.windows;}
-  constructor(){super();this.webContents=new EventEmitter();Object.assign(this.webContents,{mainFrame:{},send:(...args)=>sent.push(args),setWindowOpenHandler:()=>{}});Window.windows.push(this);}
+  constructor(options){super();this.options=options;this.webContents=new EventEmitter();Object.assign(this.webContents,{mainFrame:{},send:(...args)=>sent.push(args),setWindowOpenHandler:()=>{}});Window.windows.push(this);}
   loadFile(){}show(){}close(){this.emit('closed');Window.windows=Window.windows.filter(w=>w!==this);}
  }
  const ipc=new EventEmitter();ipc.handle=(name,fn)=>handlers.set(name,fn);
- const context={require:name=>name==='electron'?{app,BrowserWindow:Window,ipcMain:ipc,dialog:{},Menu:{buildFromTemplate:t=>t,setApplicationMenu:()=>{}},clipboard:{writeText:()=>{}}}:require(name),process:{env:{},argv:['electron'],platform:'darwin'},__dirname:path.resolve('electron'),console,setTimeout,Buffer};
+ const context={require:name=>name==='electron'?{app,BrowserWindow:Window,ipcMain:ipc,dialog:{},Menu:{buildFromTemplate:t=>t,setApplicationMenu:menu=>{app.menu=menu;}},clipboard:{writeText:()=>{}}}:require(name),process:{env:{},argv:['electron'],platform},__dirname:path.resolve('electron'),console,setTimeout,Buffer};
  vm.runInNewContext(await fs.readFile(new URL('../electron/main.cjs',import.meta.url),'utf8'),context);
  const invoke=(name,...args)=>{const w=Window.windows.at(-1);return handlers.get(name)({sender:w.webContents,senderFrame:w.webContents.mainFrame},...args);};
  const start=async()=>{ready=true;resolveReady();await new Promise(setImmediate);};
@@ -32,4 +32,12 @@ test('IPC rejects untrusted frames and opening a file after closing the window c
  const h=await harness(t);await h.start();await assert.rejects(async()=>h.handlers.get('load')({sender:{},senderFrame:{}}),/Invalid application request/);
  h.Window.windows[0].close();const file=path.join(h.dir,'equation.tex');await fs.writeFile(file,'x^2');h.app.emit('open-file',{preventDefault(){}},file);assert.equal(h.Window.windows.length,1);
  await h.invoke('renderer-ready');assert.equal(h.sent[0][1].name,'equation.tex');
+});
+
+test('Windows uses native window chrome and standard File-menu accelerators',async t=>{
+ const h=await harness(t,'win32');await h.start();
+ assert.equal(h.Window.windows[0].options.titleBarStyle,undefined);
+ assert.equal(h.app.menu[0].label,'File');
+ assert(h.app.menu[0].submenu.some(item=>item.accelerator==='CmdOrCtrl+O'));
+ assert(h.app.menu[0].submenu.some(item=>item.role==='quit'));
 });

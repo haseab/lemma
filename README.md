@@ -72,3 +72,26 @@ For isolated development profiles, `LEMMA_DATA_DIR` accepts an absolute runtime 
 ## Credits and license
 
 MIT. See [LICENSE](LICENSE). MathLive (MIT), Lucide (ISC), Electron (MIT), and Vite (MIT) retain their respective licenses. Dependency license notices are included in `THIRD-PARTY-NOTICES.txt` and the application bundle.
+
+## Website
+
+The standalone landing page lives in `site/`. It includes a working MathLive demo and discovers platform downloads from published GitHub Releases. It does not advertise a download until a matching release asset exists.
+
+Copy `.env.example` to `.env.local` and set `VITE_REPOSITORY_URL` to the public repository URL, then run:
+
+```sh
+npm run site:build
+npm run site:dev
+```
+
+Deploy `site-dist/` to any static host and connect your domain there. No server, database, account system, or paid service is required. The public repository URL is build-time configuration; no credentials belong in it.
+
+## Windows preview
+
+```sh
+npm run package:windows
+```
+
+This creates `deliverables/Lemma-win32-x64/Lemma.exe` and its supporting files. Distribute the entire folder as a ZIP; the executable cannot be copied on its own. This is a portable preview, without an installer, automatic file associations, or a Windows signing certificate. A successful cross-platform package build does not replace a native Windows launch and editing test.
+
+The Mac packaging command remains `npm run package:mac`. Desktop packages contain only an explicit allowlist of runtime files; the website, tests, local settings, user pages, and repository metadata are excluded.

@@ -35,7 +35,7 @@ async function exportText(data,extension,label){
 }
 function createWindow(){
  closing=false;rendererReady=false;
- win=new BrowserWindow({width:1280,height:880,minWidth:760,minHeight:560,title:'Lemma',backgroundColor:'#faf9f6',titleBarStyle:'hiddenInset',trafficLightPosition:{x:20,y:22},webPreferences:{preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true}});
+ win=new BrowserWindow({width:1280,height:880,minWidth:760,minHeight:560,title:'Lemma',backgroundColor:'#faf9f6',...(process.platform==='darwin'?{titleBarStyle:'hiddenInset',trafficLightPosition:{x:20,y:22}}:{}),webPreferences:{preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true}});
  win.on('close',event=>{if(!closing){event.preventDefault();win.webContents.send('before-close');}});
  win.once('closed',()=>{win=null;rendererReady=false;});
  win.webContents.setWindowOpenHandler(()=>({action:'deny'}));win.webContents.on('will-navigate',event=>event.preventDefault());
@@ -63,8 +63,8 @@ else app.whenReady().then(()=>{
  });
  const action=(label,accelerator,name)=>({label,accelerator,click:()=>send(name)});
  Menu.setApplicationMenu(Menu.buildFromTemplate([
-  {label:'Lemma',submenu:[{role:'about'},{type:'separator'},{role:'hide'},{role:'hideOthers'},{role:'unhide'},{type:'separator'},{role:'quit'}]},
-  {label:'File',submenu:[action('New canvas','CmdOrCtrl+N','new'),action('Open canvas…','CmdOrCtrl+O','open'),{type:'separator'},action('Export page…','CmdOrCtrl+Shift+S','export'),action('Export LaTeX…',null,'latex'),action('Export plain text…',null,'text'),action('Export PDF…','CmdOrCtrl+Shift+P','pdf'),{type:'separator'},action('Previous versions…',null,'versions')]},
+  ...(process.platform==='darwin'?[{label:'Lemma',submenu:[{role:'about'},{type:'separator'},{role:'hide'},{role:'hideOthers'},{role:'unhide'},{type:'separator'},{role:'quit'}]}]:[]),
+  {label:'File',submenu:[action('New canvas','CmdOrCtrl+N','new'),action('Open canvas…','CmdOrCtrl+O','open'),{type:'separator'},action('Export page…','CmdOrCtrl+Shift+S','export'),action('Export LaTeX…',null,'latex'),action('Export plain text…',null,'text'),action('Export PDF…','CmdOrCtrl+Shift+P','pdf'),{type:'separator'},action('Previous versions…',null,'versions'),...(process.platform==='darwin'?[]:[{type:'separator'},{role:'quit'}])]},
   {label:'Edit',submenu:[action('Undo','CmdOrCtrl+Z','undo'),action('Redo','CmdOrCtrl+Shift+Z','redo'),{type:'separator'},{role:'cut'},{role:'copy'},{role:'paste'},{role:'selectAll'},{type:'separator'},action('Find…','CmdOrCtrl+F','find'),action('Find next','CmdOrCtrl+G','findNext'),action('Find previous','CmdOrCtrl+Shift+G','findPrevious'),action('Replace…','Alt+CmdOrCtrl+F','replace'),action('Insert LaTeX…','CmdOrCtrl+Shift+L','insertLatex'),action('Copy selection as LaTeX',null,'copyLatex')]},
   {label:'View',submenu:[{role:'reload'},{role:'toggleDevTools'},{type:'separator'},{role:'resetZoom'},{role:'zoomIn'},{role:'zoomOut'},{role:'togglefullscreen'}]}
  ]));
