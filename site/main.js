@@ -25,7 +25,7 @@ const first=freshDocument('Untitled page');
 let notebook={version:2,activeId:first.id,documents:[first]},page=first,blocked=false;
 try{const loaded=loadScratchpad(localStorage);if(loaded.page)notebook=loaded.page;if(loaded.recovered)toast('Recovered your previous saved copy.');}catch(error){blocked=true;toast(error.message);}
 let field,saveTimer,selection,loading=false;
-const tabs=createPageTabs($('#page-tabs'),{onSelect:switchPage,onNew:newPage});
+const tabs=createPageTabs($('#page-tabs'),{onSelect:switchPage,onNew:newPage,onClose:closePage,getPage:id=>{capture();return notebook.documents.find(d=>d.id===id);}});
 function updateEmpty(){ $('#scratchpad').classList.toggle('has-content',!!field.getValue('plain-text').trim()); }
 function capture(){if(!field||loading)return;page.title=$('#title').value||'Untitled page';page.content={type:'math-page',latex:field.value,mode:page.content.mode};page.history=field.pageHistory.serialize();page.updatedAt=Date.now();}
 function save(){
@@ -46,6 +46,14 @@ function switchPage(id){
  field.addEventListener('keydown',e=>{if(e.key==='Escape'&&field.mode!=='latex'){e.preventDefault();e.stopPropagation();document.querySelector('[data-mode="auto"]').focus();}},true);
  mode(page.content.mode,false);selection=null;loading=false;updateEmpty();tabs.render(notebook.documents,notebook.activeId);
  if(switching){save();field.focus();}
+}
+function closePage(id){
+ capture();const index=notebook.documents.findIndex(d=>d.id===id);if(index<0)return;
+ const selected=id===notebook.activeId;notebook.documents.splice(index,1);
+ if(!notebook.documents.length)notebook.documents.push(freshDocument('Untitled page'));
+ if(selected){field.pageHistory.dispose();field.remove();field=null;switchPage(notebook.documents[Math.max(0,index-1)]?.id||notebook.documents[0].id);field.focus();}
+ else{tabs.render(notebook.documents,notebook.activeId);field.focus();}
+ save();
 }
 function newPage(){if(notebook.documents.length>=1000){toast('Page limit reached. Export a backup before starting another notebook.');return;}const d=freshDocument('Untitled page');notebook.documents.push(d);switchPage(d.id);}
 switchPage(notebook.activeId);$('#save-status').textContent=blocked?'Export to keep your work':'Saved in this browser';

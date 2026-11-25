@@ -52,7 +52,15 @@ async function persist(){
   if(rev===revision&&capturedEdit===editRevision){$('#save-status').textContent='All changes saved';dirty=false;failures=0;}return true;
  }catch{if(!failures)toast('Save failed. Your previous file is preserved. Retrying automatically; export a copy before closing.');failures++;$('#save-status').textContent='Save failed · retrying';return false;}
 }
-const tabs=createPageTabs($('#page-tabs'),{onSelect:id=>switchDocument(id),onNew:()=>actions.new()});
+const tabs=createPageTabs($('#page-tabs'),{onSelect:id=>switchDocument(id),onNew:()=>actions.new(),onClose:closePage,getPage:id=>{capture();return notebook.documents.find(d=>d.id===id);}});
+function closePage(id){
+ capture();const index=notebook.documents.findIndex(d=>d.id===id);if(index<0)return;
+ const selected=id===notebook.activeId;notebook.documents.splice(index,1);
+ if(!notebook.documents.length)notebook.documents.push(freshDocument('Untitled page'));
+ if(selected){mf.pageHistory.dispose();mf.remove();mf=null;switchDocument(notebook.documents[Math.max(0,index-1)]?.id||notebook.documents[0].id);}
+ else{renderList();mf.focus();}
+ scheduleSave();
+}
 function renderList(){tabs.render(notebook.documents.map(d=>d.id===notebook.activeId?{...d,title:$('#title').value}:d),notebook.activeId);const query=$('#search').value.toLowerCase();$('#documents').replaceChildren();for(const d of notebook.documents.filter(d=>d.title.toLowerCase().includes(query))){const b=document.createElement('button');b.textContent=d.title;b.classList.toggle('active',d.id===notebook.activeId);b.setAttribute('aria-current',String(d.id===notebook.activeId));b.onclick=()=>{if(d.id!==notebook.activeId)switchDocument(d.id);};$('#documents').append(b);}}
 function mode(value,focus=true){
  active().content.mode=value;mf.pageInputMode=value;mf.smartMode=false;mf.resetProseInput();

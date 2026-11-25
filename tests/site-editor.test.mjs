@@ -50,3 +50,14 @@ test('browser tabs migrate an existing page, isolate edits and undo, rename, and
  const restored=await boot(saved,'tabs-reload');assert.equal(restored.$('[role="tab"][aria-selected="true"]').textContent,'Existing page');assert.equal(restored.$('#math-page').value,'x');restored.$('#redo').click();assert.equal(restored.$('#math-page').value,'x^2');
  [...restored.browser.document.querySelectorAll('[role="tab"]')].find(b=>b.textContent==='Second page').click();assert.equal(restored.$('#math-page').value,'y+2');restored.$('#undo').click();assert.equal(restored.$('#math-page').getValue('plain-text'),'');await restored.close();
 });
+
+test('web close confirmation preserves cancelled pages, removes accepted pages, and keeps a blank last tab',async()=>{
+ const app=await boot(JSON.stringify({version:1,title:'Protected page',content:{type:'math-page',latex:'x+1',mode:'auto'}}),'close-tabs');const first=app.$('[role="tab"]').dataset.pageId;
+ app.$('#new-tab').click();const empty=app.$('[role="tab"][aria-selected="true"]').dataset.pageId;
+ app.$(`[data-close-page="${first}"]`).click();assert(app.$('#close-page-dialog').open);app.$('[data-cancel]').click();await wait(5);assert.equal(app.browser.document.querySelectorAll('[role="tab"]').length,2);assert.equal(app.$('[role="tab"][aria-selected="true"]').dataset.pageId,empty);
+ app.$(`[data-close-page="${empty}"]`).click();assert.equal(app.$('#close-page-dialog'),null);assert.equal(app.$('#math-page').value,'x+1');
+ app.$(`[data-close-page="${first}"]`).click();app.$('[data-confirm]').click();await wait(5);assert.equal(app.browser.document.querySelectorAll('[role="tab"]').length,1);assert.notEqual(app.$('[role="tab"]').dataset.pageId,first);assert.equal(app.$('#math-page').getValue('plain-text'),'');
+ const blank=app.$('[role="tab"]').dataset.pageId;app.$(`[data-close-page="${blank}"]`).click();assert.equal(app.$('#close-page-dialog'),null);assert.equal(app.browser.document.querySelectorAll('[role="tab"]').length,1);
+ const saved=await app.close();assert.equal(JSON.parse(saved).documents.length,1);assert(!JSON.parse(saved).documents.some(d=>d.id===first));
+ const restored=await boot(saved,'closed-tabs-reload');assert.equal(restored.$('#math-page').getValue('plain-text'),'');await restored.close();
+});

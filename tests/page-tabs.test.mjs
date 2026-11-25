@@ -10,3 +10,20 @@ test('shared tabs expose selection, support keyboard navigation, and provide a n
  d.querySelector('[role="tab"]').dispatchEvent(new browser.KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true,cancelable:true}));assert.equal(selected,'second');assert.equal(d.activeElement.getAttribute('aria-selected'),'true');assert.equal(d.querySelectorAll('[role="tab"][tabindex="0"]').length,1);
  d.querySelector('#new-tab').click();assert.equal(created,1);await browser.happyDOM.close();
 });
+
+test('close controls skip confirmation for blank pages and require confirmation for current content',async()=>{
+ const browser=new Window(),d=browser.document;d.body.innerHTML='<div id="tabs"><input id="title" value="Example"></div><div id="surface"></div>';
+ const pages=[{id:'empty',title:'Empty',content:{latex:'\\displaylines{\\\\}'}},{id:'filled',title:'Example',content:{latex:''}}],closed=[];
+ const tabs=createPageTabs(d.querySelector('#tabs'),{onSelect:()=>{},onNew:()=>{},onClose:id=>closed.push(id),getPage:id=>id==='filled'?{...pages[1],content:{latex:'x+1'}}:pages[0]});tabs.render(pages,'filled');
+ d.querySelector('[data-close-page="empty"]').click();assert.deepEqual(closed,['empty']);assert.equal(d.querySelector('dialog'),null);
+ d.querySelector('[data-close-page="filled"]').click();assert(d.querySelector('dialog').open);assert.equal(d.activeElement,d.querySelector('[data-cancel]'));assert.deepEqual(closed,['empty']);
+ d.querySelector('[data-cancel]').click();await Promise.resolve();assert.equal(d.querySelector('dialog'),null);assert.deepEqual(closed,['empty']);
+ d.querySelector('[data-close-page="filled"]').click();d.querySelector('dialog').dispatchEvent(new browser.Event('cancel',{cancelable:true}));await Promise.resolve();assert.deepEqual(closed,['empty']);
+ d.querySelector('[data-close-page="filled"]').click();d.querySelector('[data-confirm]').click();await Promise.resolve();assert.deepEqual(closed,['empty','filled']);await browser.happyDOM.close();
+});
+
+const {pageHasContent}=await import('../src/page-tabs.js');
+test('empty rows and prose whitespace are blank, while equations and empty math structures are content',()=>{
+ for(const value of ['',' ','\\displaylines{}','\\displaylines{\\\\}','\\displaylines{\\text{ }}'])assert.equal(pageHasContent(value),false);
+ for(const value of ['x+1','\\text{A note}','\\frac{}{}','x^{}','\\sqrt{}'])assert.equal(pageHasContent(value),true);
+});
