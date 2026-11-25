@@ -23,3 +23,5 @@ footer{margin-top:40px;font-size:14px;line-height:1.6}footer .mathlive-credit,fo
 .wordmark .brand-mark{display:inline-flex;align-items:center;font-size:30px;font-style:normal;line-height:1}.wordmark .brand-mark svg{display:block;width:1em;height:1em}footer .wordmark .brand-mark{font-size:24px}@media(max-width:760px){.nav .brand-mark{font-size:27px}}
 
 .intro{text-align:center}.intro h1{margin-inline:auto;max-width:none}.pad-header .page-actions{flex-shrink:0}.page-tabs{margin-right:10px}.pad-header{gap:8px}@media(max-width:760px){.pad-header{padding-inline:10px}.pad-header #save-status{display:none}.page-tabs{margin-right:0}}
+
+.pad-footer{flex-wrap:wrap}.pad-footer-actions{display:flex;align-items:center;gap:18px;margin-left:auto;flex-shrink:0}.pad-footer #save-status{font-size:10px;text-align:right}@media(max-width:760px){.pad-footer-actions{gap:14px}.pad-footer #save-status{font-size:9px}}
