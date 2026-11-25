@@ -94,7 +94,7 @@ const detected=detectDesktopPlatform(navigator),repository=repositorySettings(im
 for(const link of document.querySelectorAll('[data-source]')){if(repository){link.href=repository.url;link.target='_blank';link.rel='noopener noreferrer';}else link.addEventListener('click',()=>toast('Source code link has not been configured.'));}
 void loadGitHubStars($('.github-link'),repository);
 let currentDownloads={};
-function updateDownloads(downloads){currentDownloads=downloads;updatePlatformLinks(document,detected,downloads,repository?repository.url+'/releases':'#scratchpad');for(const link of document.querySelectorAll('[data-primary-download]'))link.hidden=!downloads[detected]&&!Object.values(downloads).some(Boolean);showDownloadDetails(document,downloads[detected]);}
+function updateDownloads(downloads){currentDownloads=downloads;updatePlatformLinks(document,detected,downloads,repository?repository.url+'/releases':'#scratchpad');for(const link of document.querySelectorAll('[data-primary-download]'))link.hidden=detected?!downloads[detected]:!Object.values(downloads).some(Boolean);showDownloadDetails(document,downloads[detected]);}
 installDownloadTracking($('[data-primary-download]'),()=>currentDownloads[detected]?{...currentDownloads[detected],platform:detected}:null);
 updateDownloads({});
 try{const downloads=await loadReleaseManifest();if(downloads)updateDownloads(downloads);else throw Error('No manifest');}

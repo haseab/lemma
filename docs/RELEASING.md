@@ -19,7 +19,7 @@ npm run cloudflare:deploy
 npm run cloudflare:stats-secret
 ```
 
-The generated `.wrangler/lemma.json` is private. The committed `cloudflare/wrangler.example.json` contains only reusable examples. `LEMMA_DOMAIN` attaches the apex and www custom domains. Existing parking A/CNAME records must be removed before attachment; preserve unrelated MX/TXT records and keep a private rollback copy. Configure the registrar with the nameservers assigned to the Cloudflare zone and wait for activation and TLS issuance.
+The generated `.wrangler/lemma.json` is private. The committed `cloudflare/wrangler.example.json` contains only reusable examples. `LEMMA_DOMAIN` attaches the apex and www custom domains, redirecting www to the apex so saved pages use one browser storage origin. Existing parking A/CNAME records must be removed before attachment; preserve unrelated MX/TXT records and keep a private rollback copy. Configure the registrar with the nameservers assigned to the Cloudflare zone and wait for activation and TLS issuance.
 
 The website's source link is configured with `VITE_REPOSITORY_URL`. Download buttons appear after a valid release is published. The same-origin `/api/releases` manifest supplies version, architecture, minimum system, size, checksum, and release notes. GitHub Releases remains a fallback for older deployments.
 
@@ -61,7 +61,7 @@ Open `/stats.html` and enter `LEMMA_STATS_TOKEN`. The token is kept in memory, s
 
 Counters store only UTC day, release version, platform, entry point, event type, and count. No IP address, user agent, location, screen size, cookies, equations, or page contents are stored in D1. The click endpoint accepts only a small same-origin JSON payload with three validated fields. Provider operational processing is separate from this application database; Worker request logging is disabled in configuration.
 
-A click is a button activation. A request is a successful full GET or a range beginning at byte zero; HEAD, resumed nonzero ranges, conditional 304 responses, obvious crawlers, and prefetch requests do not increment it. These are aggregate events, not unique people, completed downloads, or installations. Failed counter writes do not prevent downloads. Release verification requests authenticated with the dashboard token are excluded. Public counters may include repeated requests and cannot be treated as fraud-proof attribution.
+A click is a button activation. A request is a successful full GET or a range beginning at byte zero; HEAD, resumed nonzero ranges, conditional 304 responses, obvious crawlers, and prefetch requests do not increment it. These are aggregate events, not unique people, completed downloads, or installations. Direct GitHub release-asset downloads have separate GitHub counters and are not part of the Cloudflare totals. Failed counter writes do not prevent downloads. Release verification requests authenticated with the dashboard token are excluded. Public counters may include repeated requests and cannot be treated as fraud-proof attribution.
 
 ## Verification
 

@@ -79,7 +79,7 @@ Brand icons can be regenerated on macOS with `node scripts/icons.mjs`.
 
 The browser scratchpad lives in `site/` and reuses the desktop editor’s math/prose handling, wrapping, clipboard, formatting, and undo logic. Pages and their individual undo histories are saved in browser storage, with a previous saved copy for recovery. Clearing browser data can remove this work; export an editable `.lemma` file for a portable backup. LaTeX import/export, source editing, plain-text export, and browser print-to-PDF are available. No scratchpad content is collected. The optional release service counts download clicks and file requests in aggregate, without storing visitor identifiers.
 
-Desktop downloads are secondary and are discovered from published GitHub Releases. No download is advertised until a matching release asset exists. The browser version requires the site to load; offline installation and the desktop app’s versioned backup system are not included.
+Desktop downloads are secondary and are discovered from the same-origin release manifest, with published GitHub Releases as a fallback. No download is advertised until a matching release asset exists. The browser version requires the site to load; offline installation and the desktop app’s versioned backup system are not included.
 
 Copy `.env.example` to `.env.local` and set `VITE_REPOSITORY_URL` to the public repository URL, then run:
 
