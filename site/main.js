@@ -1,3 +1,4 @@
+import {editorHints} from '../src/editor-hints.js';
 import {installTooltips} from '../src/tooltips.js';
 import {createPageTabs} from '../src/page-tabs.js';
 import 'mathlive/static.css';
@@ -21,6 +22,7 @@ createIcons({icons:{Github,Star,ArrowUpRight,FileText,FolderOpen,Download,Bold,I
 const $=s=>document.querySelector(s);
 for(const mark of document.querySelectorAll('[data-brand-mark]'))mark.innerHTML=brandMark;
 installFullscreen(document.documentElement,$('#fullscreen'));
+document.querySelector('[data-editor-hints]').outerHTML=editorHints(/Mac/i.test(navigator.platform));
 installTooltips(document);
 let toastTimer;function toast(message){$('#toast').textContent=message;$('#toast').classList.add('visible');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('#toast').classList.remove('visible'),5500);}
 const first=freshDocument('Untitled page');
@@ -92,3 +94,5 @@ void loadGitHubStars($('.github-link'),repository);
 function updateDownloads(downloads){updatePlatformLinks(document,detected,downloads,repository?repository.url+'/releases':'#scratchpad');for(const link of document.querySelectorAll('[data-primary-download]'))link.hidden=!repository;}
 updateDownloads({});
 if(repository){try{const response=await fetch(repository.api,{headers:{Accept:'application/vnd.github+json'},signal:AbortSignal.timeout(6000)});if(!response.ok)throw Error('No releases');updateDownloads(releaseDownloads(await response.json(),repository));}catch{/* The header keeps its GitHub Releases fallback. */}}
+
+import '../src/editor-hints.css';
