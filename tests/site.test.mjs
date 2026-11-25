@@ -58,3 +58,10 @@ test('native fullscreen follows browser Escape and failed requests retain a work
  root.requestFullscreen=async()=>{throw Error('Unavailable');};button.click();await Promise.resolve();assert.equal(button.getAttribute('aria-pressed'),'true');button.click();await Promise.resolve();assert.equal(button.getAttribute('aria-pressed'),'false');
  await browser.happyDOM.close();
 });
+
+test('header download works without a download section and switches from releases to the matching asset',async()=>{
+ const browser=new Window(),d=browser.document;d.body.innerHTML='<a data-primary-download></a>';
+ const fallback='https://github.com/example/lemma/releases';updatePlatformLinks(d,'windows',{},fallback);assert.equal(d.querySelector('a').getAttribute('href'),fallback);
+ const url=fallback+'/download/v1/windows.zip';updatePlatformLinks(d,'windows',{windows:{url}},fallback);assert.equal(d.querySelector('a').getAttribute('href'),url);
+ updatePlatformLinks(d,null,{},fallback);assert.equal(d.querySelector('a').getAttribute('href'),fallback);await browser.happyDOM.close();
+});

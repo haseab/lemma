@@ -1,7 +1,7 @@
 import 'mathlive/static.css';
 import {installFullscreen} from './fullscreen.js';
 import {validateLatex} from 'mathlive';
-import {createIcons,ArrowUpRight,FileText,FolderOpen,Download,Bold,Italic,Undo2,Redo2,CodeXml,CircleHelp,Plus,Eraser,Monitor,Apple,AppWindow,ArrowDownToLine,Maximize2,Minimize2} from 'lucide';
+import {createIcons,ArrowUpRight,FileText,FolderOpen,Download,Bold,Italic,Undo2,Redo2,CodeXml,CircleHelp,Plus,Eraser,Maximize2,Minimize2} from 'lucide';
 import {MathfieldElement,createPageMathfield} from '../src/page-editor.js';
 import {installPageHistory} from '../src/history.js';
 import {EMPTY_PAGE,validateDocument} from '../src/document.js';
@@ -13,7 +13,7 @@ import {loadScratchpad,saveScratchpad} from './scratchpad-store.js';
 import {repositorySettings,releaseDownloads} from './releases.js';
 import {detectDesktopPlatform,updatePlatformLinks} from './platform.js';
 MathfieldElement.fontsDirectory=new URL('./fonts',document.baseURI).href;MathfieldElement.soundsDirectory=null;
-createIcons({icons:{ArrowUpRight,FileText,FolderOpen,Download,Bold,Italic,Undo2,Redo2,CodeXml,CircleHelp,Plus,Eraser,Monitor,Apple,AppWindow,ArrowDownToLine,Maximize2,Minimize2}});
+createIcons({icons:{ArrowUpRight,FileText,FolderOpen,Download,Bold,Italic,Undo2,Redo2,CodeXml,CircleHelp,Plus,Eraser,Maximize2,Minimize2}});
 const $=s=>document.querySelector(s);
 installFullscreen(document.documentElement,$('#fullscreen'));
 let toastTimer;function toast(message){$('#toast').textContent=message;$('#toast').classList.add('visible');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('#toast').classList.remove('visible'),5500);}
@@ -61,6 +61,6 @@ window.addEventListener('pagehide',save);document.addEventListener('visibilitych
 document.addEventListener('pointerdown',e=>{if(!$('#export-menu').contains(e.target))$('#export-menu').open=false;});
 const detected=detectDesktopPlatform(navigator),repository=repositorySettings(import.meta.env.VITE_REPOSITORY_URL);
 for(const link of document.querySelectorAll('[data-source]')){if(repository){link.href=repository.url;link.target='_blank';link.rel='noopener noreferrer';}else link.addEventListener('click',()=>toast('Source code link has not been configured.'));}
-function updateDownloads(downloads){updatePlatformLinks(document,detected,downloads);for(const platform of ['mac','windows']){const link=document.querySelector(`[data-download="${platform}"]`),status=document.querySelector(`[data-build-status="${platform}"]`),asset=downloads[platform];link.href=asset?.url||(repository?repository.url+'/releases':'#release-note');link.title=asset?'Download for '+(platform==='mac'?'Mac':'Windows'):'View preview releases';status.textContent=asset?`${asset.version} · ${asset.preview?'Preview':'Release'}`:'Public download coming soon';}}
+function updateDownloads(downloads){updatePlatformLinks(document,detected,downloads,repository?repository.url+'/releases':'#scratchpad');for(const link of document.querySelectorAll('[data-primary-download]'))link.hidden=!repository;}
 updateDownloads({});
-if(repository){try{const response=await fetch(repository.api,{headers:{Accept:'application/vnd.github+json'},signal:AbortSignal.timeout(6000)});if(!response.ok)throw Error('No releases');updateDownloads(releaseDownloads(await response.json(),repository));$('#release-note').textContent='Preview builds. Read release notes before installing.';}catch{$('#release-note').textContent='Preview builds appear on GitHub Releases.';}}
+if(repository){try{const response=await fetch(repository.api,{headers:{Accept:'application/vnd.github+json'},signal:AbortSignal.timeout(6000)});if(!response.ok)throw Error('No releases');updateDownloads(releaseDownloads(await response.json(),repository));}catch{/* The header keeps its GitHub Releases fallback. */}}

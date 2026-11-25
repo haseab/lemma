@@ -8,9 +8,9 @@ export function detectDesktopPlatform({userAgentData,platform='',userAgent='',ma
  if(/Macintosh|Mac OS X/i.test(userAgent))return 'mac';
  return null;
 }
-export function updatePlatformLinks(root,platform,downloads={}){
+export function updatePlatformLinks(root,platform,downloads={},fallback){
  const label=platform==='mac'?'Download for Mac':platform==='windows'?'Download for Windows':null;
- const href=platform?(downloads[platform]?.url||`#download-${platform}`):'#download';
+ const href=platform?(downloads[platform]?.url||fallback||`#download-${platform}`):(fallback||'#download');
  for(const link of root.querySelectorAll('[data-primary-download]')){link.textContent=label?`${label} ↓`:'View downloads ↓';link.setAttribute('href',href);}
  const card=platform&&root.querySelector(`[data-platform="${platform}"]`);
  if(card){card.classList.add('detected');card.parentElement.prepend(card);}
