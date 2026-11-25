@@ -59,12 +59,17 @@ else app.whenReady().then(()=>{
  });
  handle('export-pdf',async()=>{
   const r=await dialog.showSaveDialog(win,{defaultPath:'Canvas.pdf',filters:[{name:'PDF',extensions:['pdf']}]});if(r.canceled)return false;
-  const pdf=await win.webContents.printToPDF({printBackground:true,preferCSSPageSize:true});await store.atomic(r.filePath,pdf);return true;
+  const pdf=await win.webContents.printToPDF({printBackground:true,preferCSSPageSize:true,displayHeaderFooter:false});await store.atomic(r.filePath,pdf);return true;
  });
+ handle('print-page',()=>new Promise((resolve,reject)=>{
+  win.webContents.print({silent:false,printBackground:true},(success,reason)=>{
+   if(success||reason==='Print job canceled')resolve(success);else reject(Error('Could not print the page.'));
+  });
+ }));
  const action=(label,accelerator,name)=>({label,accelerator,click:()=>send(name)});
  Menu.setApplicationMenu(Menu.buildFromTemplate([
   ...(process.platform==='darwin'?[{label:'Lemma',submenu:[{role:'about'},{type:'separator'},{role:'hide'},{role:'hideOthers'},{role:'unhide'},{type:'separator'},{role:'quit'}]}]:[]),
-  {label:'File',submenu:[action('New canvas','CmdOrCtrl+N','new'),action('Open canvas…','CmdOrCtrl+O','open'),{type:'separator'},action('Export page…','CmdOrCtrl+Shift+S','export'),action('Export LaTeX…',null,'latex'),action('Export plain text…',null,'text'),action('Export PDF…','CmdOrCtrl+Shift+P','pdf'),{type:'separator'},action('Previous versions…',null,'versions'),...(process.platform==='darwin'?[]:[{type:'separator'},{role:'quit'}])]},
+  {label:'File',submenu:[action('New canvas','CmdOrCtrl+N','new'),action('Open canvas…','CmdOrCtrl+O','open'),{type:'separator'},action('Export page…','CmdOrCtrl+Shift+S','export'),action('Export LaTeX…',null,'latex'),action('Export plain text…',null,'text'),action('Export PDF…','CmdOrCtrl+Shift+P','pdf'),action('Print…','CmdOrCtrl+P','print'),{type:'separator'},action('Previous versions…',null,'versions'),...(process.platform==='darwin'?[]:[{type:'separator'},{role:'quit'}])]},
   {label:'Edit',submenu:[action('Undo','CmdOrCtrl+Z','undo'),action('Redo','CmdOrCtrl+Shift+Z','redo'),{type:'separator'},{role:'cut'},{role:'copy'},{role:'paste'},{role:'selectAll'},{type:'separator'},action('Find…','CmdOrCtrl+F','find'),action('Find next','CmdOrCtrl+G','findNext'),action('Find previous','CmdOrCtrl+Shift+G','findPrevious'),action('Replace…','Alt+CmdOrCtrl+F','replace'),action('Insert LaTeX…','CmdOrCtrl+Shift+L','insertLatex'),action('Copy selection as LaTeX',null,'copyLatex')]},
   {label:'View',submenu:[{role:'reload'},{role:'toggleDevTools'},{type:'separator'},{role:'resetZoom'},{role:'zoomIn'},{role:'zoomOut'},{role:'togglefullscreen'}]}
  ]));

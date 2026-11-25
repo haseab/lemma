@@ -1,3 +1,5 @@
+import {installPrinting} from '../src/printing.js';
+import '../src/print.css';
 import {loadReleaseManifest,installDownloadTracking,showDownloadDetails} from './downloads.js';
 import {installSourcePanel} from '../src/source-panel.js';
 import '../src/source-panel.css';
@@ -28,6 +30,7 @@ installFullscreen(document.documentElement,$('#fullscreen'));
 document.querySelector('[data-editor-hints]').outerHTML=editorHints(/Mac/i.test(navigator.platform));
 installTooltips(document);
 let toastTimer;function toast(message){$('#toast').textContent=message;$('#toast').classList.add('visible');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('#toast').classList.remove('visible'),5500);}
+const printing=installPrinting({onError:()=>toast('Printing failed. Please try again.')});
 const first=freshDocument('Untitled page');
 let notebook={version:2,activeId:first.id,documents:[first]},page=first,blocked=false;
 try{const loaded=loadScratchpad(localStorage);if(loaded.page)notebook=loaded.page;if(loaded.recovered)toast('Recovered your previous saved copy.');}catch(error){blocked=true;toast(error.message);}
@@ -84,7 +87,7 @@ for(const name of ['help','privacy'])$('#'+name+'-open').onclick=()=>$('#'+name+
 $('#keyboard-open').onclick=()=>{$('#help-dialog').close();field.focus();window.mathVirtualKeyboard.show();};
 for(const el of document.querySelectorAll('[data-mod]'))el.textContent=/Mac/i.test(navigator.platform)?'⌘':'Ctrl+';
 function download(data,extension){const url=URL.createObjectURL(new Blob([data],{type:extension==='lemma'?'application/json':'text/plain'})),a=document.createElement('a');a.href=url;a.download=($('#title').value.replace(/[<>:"/\\|?*\x00-\x1f]/g,'').trim()||'Page')+'.'+extension;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
-for(const b of document.querySelectorAll('[data-export]'))b.onclick=async()=>{ $('#export-menu').open=false;const kind=b.dataset.export;if(kind==='pdf'){await document.fonts.ready;window.print();return;}if(kind==='latex')download(exportLatex(field.value),'tex');else if(kind==='text')download(field.getValue('plain-text'),'txt');else download(JSON.stringify({version:2,title:$('#title').value||'Untitled page',content:{type:'math-page',latex:field.value,mode:page.content.mode}},null,2),'lemma');};
+for(const b of document.querySelectorAll('[data-export]'))b.onclick=async()=>{ $('#export-menu').open=false;const kind=b.dataset.export;if(kind==='pdf'){await printing.pdf();return;}if(kind==='latex')download(exportLatex(field.value),'tex');else if(kind==='text')download(field.getValue('plain-text'),'txt');else download(JSON.stringify({version:2,title:$('#title').value||'Untitled page',content:{type:'math-page',latex:field.value,mode:page.content.mode}},null,2),'lemma');};
 $('#open-file').onclick=()=>$('#file-input').click();
 $('#file-input').onchange=async()=>{const file=$('#file-input').files[0];if(!file)return;try{if(file.size>4_000_000)throw Error('This file exceeds the page limit.');const imported=importPageFile({name:file.name,data:await file.text()}),content=validateDocument(imported.content);if(validateLatex(content.latex).length)throw Error('This file contains unsupported or incomplete LaTeX.');const d=freshDocument(String(imported.title||file.name.replace(/\.[^.]+$/,'')).slice(0,200));d.content=content;notebook.documents.push(d);switchPage(d.id);toast('Page imported in a new tab.');}catch(error){toast(error.message||'Could not import this file.');}finally{$('#file-input').value='';}};
 // No page content is sent over the network. Saving runs synchronously on exit.
