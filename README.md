@@ -2,7 +2,7 @@
 
 A free, open-source, offline desktop math scratchpad powered by MathLive. Write equations and prose in the same cursor flow, without an account or a network service.
 
-Lemma is an early prototype. The desktop packaging currently targets Apple Silicon Macs and uses an ad hoc signature for local use, without Developer ID signing or notarization.
+Lemma is an early preview. Development packages use ad hoc signing; the public Mac release pipeline requires Developer ID signing, Apple notarization, stapling, and Gatekeeper verification. See [Release and deployment](docs/RELEASING.md).
 
 ## Run
 
@@ -30,7 +30,7 @@ The app is created at `deliverables/Lemma-darwin-arm64/Lemma.app`. Packaging reg
 - `/` creates a fraction and `^` a power in math mode. Arrow keys navigate structured math. Tab indents; Shift-Tab removes an indent. Escape moves focus from the editor to the formatting controls. Left and right arrows move between toolbar controls when a button has focus.
 - Select text to change its font family, size, color, bold or italic style. Formatting also applies to upcoming typing.
 - At the baseline immediately after an exponent, Backspace pulls the following math expression into that exponent and its open parenthesis, if present. It preserves nested formatting and stops at a relation or prose.
-- Use the Pages sidebar to create and switch pages. Rename a page in the small header field.
+- Use the Pages sidebar to create and switch pages. Rename a page by double-clicking its tab or choosing Rename page in the tab context menu.
 
 ## Undo, autosave and recovery
 
@@ -52,7 +52,7 @@ Use Command-F to find literal text and symbols. Command-G and Shift-Command-G mo
 
 - Open `.lemma`, earlier `.folio`, or `.tex`/`.latex` files through **File → Open**. Opening a document adds an editable page to the notebook; it does not overwrite the source file.
 - Paste equation fragments such as `\frac{a}{b}`, dollar-delimited math, or `\(...\)` / `\[...\]` expressions. Ordinary prose and multiple lines paste as literal text, with backticks available for embedded math.
-- **Edit → Insert LaTeX** opens the source dialog. Apply edited source to the page or insert it at the cursor; both actions can be undone.
+- **Edit → Insert LaTeX** opens an inline source panel. Valid source updates the page immediately and can be undone; incomplete source retains the last valid preview.
 - Import supports equation fragments, common AMS display environments, and simple LaTeX documents containing prose and inline math. This is MathLive-compatible mathematical LaTeX, not a complete TeX implementation. Custom macros, included files and arbitrary package-dependent document commands are not executed or generally supported.
 - **File → Export** offers editable `.lemma`, a standalone LaTeX `.tex` document, PDF, and readable plain text. LaTeX exports declare AMS math and color packages. Editable exports omit local undo history.
 - Copying a selection puts readable plain/HTML text, LaTeX and MathML on the clipboard. Other apps choose the formats they support. **Edit → Copy selection as LaTeX** explicitly copies source.
@@ -77,7 +77,7 @@ Brand icons can be regenerated on macOS with `node scripts/icons.mjs`.
 
 ## Website
 
-The browser scratchpad lives in `site/` and reuses the desktop editor’s math/prose handling, wrapping, clipboard, formatting, and undo logic. Pages and their individual undo histories are saved in browser storage, with a previous saved copy for recovery. Clearing browser data can remove this work; export an editable `.lemma` file for a portable backup. LaTeX import/export, source editing, plain-text export, and browser print-to-PDF are available. No scratchpad content or usage analytics are collected.
+The browser scratchpad lives in `site/` and reuses the desktop editor’s math/prose handling, wrapping, clipboard, formatting, and undo logic. Pages and their individual undo histories are saved in browser storage, with a previous saved copy for recovery. Clearing browser data can remove this work; export an editable `.lemma` file for a portable backup. LaTeX import/export, source editing, plain-text export, and browser print-to-PDF are available. No scratchpad content is collected. The optional release service counts download clicks and file requests in aggregate, without storing visitor identifiers.
 
 Desktop downloads are secondary and are discovered from published GitHub Releases. No download is advertised until a matching release asset exists. The browser version requires the site to load; offline installation and the desktop app’s versioned backup system are not included.
 
@@ -88,7 +88,7 @@ npm run site:build
 npm run site:dev
 ```
 
-Deploy `site-dist/` to any static host and connect your domain there. No server, database, account system, or paid service is required. The public repository URL is build-time configuration; no credentials belong in it.
+The editor can run on any static host. The included Cloudflare deployment adds R2 release storage and D1 aggregate download counters. See [Release and deployment](docs/RELEASING.md) for private settings, signed Mac releases, deployment, publishing, rollback, and the protected download dashboard. The public repository URL is build-time configuration; no credentials belong in it.
 
 ## Windows preview
 

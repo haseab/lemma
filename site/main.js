@@ -1,3 +1,4 @@
+import {loadReleaseManifest,installDownloadTracking,showDownloadDetails} from './downloads.js';
 import {installSourcePanel} from '../src/source-panel.js';
 import '../src/source-panel.css';
 import {editorHints} from '../src/editor-hints.js';
@@ -92,8 +93,11 @@ document.addEventListener('pointerdown',e=>{if(!$('#export-menu').contains(e.tar
 const detected=detectDesktopPlatform(navigator),repository=repositorySettings(import.meta.env.VITE_REPOSITORY_URL);
 for(const link of document.querySelectorAll('[data-source]')){if(repository){link.href=repository.url;link.target='_blank';link.rel='noopener noreferrer';}else link.addEventListener('click',()=>toast('Source code link has not been configured.'));}
 void loadGitHubStars($('.github-link'),repository);
-function updateDownloads(downloads){updatePlatformLinks(document,detected,downloads,repository?repository.url+'/releases':'#scratchpad');for(const link of document.querySelectorAll('[data-primary-download]'))link.hidden=!repository;}
+let currentDownloads={};
+function updateDownloads(downloads){currentDownloads=downloads;updatePlatformLinks(document,detected,downloads,repository?repository.url+'/releases':'#scratchpad');for(const link of document.querySelectorAll('[data-primary-download]'))link.hidden=!downloads[detected]&&!Object.values(downloads).some(Boolean);showDownloadDetails(document,downloads[detected]);}
+installDownloadTracking($('[data-primary-download]'),()=>currentDownloads[detected]?{...currentDownloads[detected],platform:detected}:null);
 updateDownloads({});
-if(repository){try{const response=await fetch(repository.api,{headers:{Accept:'application/vnd.github+json'},signal:AbortSignal.timeout(6000)});if(!response.ok)throw Error('No releases');updateDownloads(releaseDownloads(await response.json(),repository));}catch{/* The header keeps its GitHub Releases fallback. */}}
+try{const downloads=await loadReleaseManifest();if(downloads)updateDownloads(downloads);else throw Error('No manifest');}
+catch{if(repository){try{const response=await fetch(repository.api,{headers:{Accept:'application/vnd.github+json'},signal:AbortSignal.timeout(6000)});if(response.ok)updateDownloads(releaseDownloads(await response.json(),repository));}catch{/* Keep the editor available when releases are unavailable. */}}}
 
 import '../src/editor-hints.css';
