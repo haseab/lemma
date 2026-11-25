@@ -18,6 +18,7 @@ async function boot(saved,suffix){
  }
  document.fonts={ready:Promise.resolve(),check:()=>true,load:async()=>[],add:()=>{}};
  globalThis.FontFace=class{constructor(family){this.family=family;this.status='loaded';this.loaded=Promise.resolve(this);}load(){return this.loaded;}};
+ const style=document.createElement('style');style.textContent=readFileSync(path.join(output,'assets',readdirSync(path.join(output,'assets')).find(n=>/^index-.*\.css$/.test(n))),'utf8');document.head.append(style);
  document.body.innerHTML=readFileSync('site/index.html','utf8').match(/<body>([\s\S]*)<script type="module"/)[1];
  if(saved)localStorage.setItem('lemma.web.scratchpad.v1',saved);
  await import(pathToFileURL(asset).href+'?test='+suffix);await wait(40);
@@ -26,9 +27,12 @@ async function boot(saved,suffix){
 }
 test('website scratchpad edits with the shared engine, reverses clear/source edits, and restores undo after reload',async()=>{
  const a=await boot(null,'first'),f=a.$('#math-page');
- assert(f.pageHistory);assert.equal(f.pageInputMode,'auto');assert.equal(f.getValue('plain-text'),'');
+ assert(f.pageHistory);assert.equal(f.pageInputMode,'auto');
+ assert.equal(getComputedStyle(f).getPropertyValue('--highlight-text'),'transparent');assert.equal(getComputedStyle(f).getPropertyValue('--text-highlight-background-color'),'transparent');assert.equal(f.getValue('plain-text'),'');
  a.$('[data-example="quadratic"]').click();await wait(30);assert.match(f.value,/x\^2/);assert(a.$('#scratchpad').classList.contains('has-content'));
- const equation=f.value;f.mode='text';a.$('#clear-page').click();await wait(30);assert.equal(f.getValue('plain-text'),'');assert.equal(f.mode,'math');a.$('#undo').click();assert.equal(f.value,equation);
+ const equation=f.value;
+ f.selection={ranges:[[0,f.lastOffset]]};assert.equal(f.selectionIsCollapsed,false);assert.notEqual(getComputedStyle(f).getPropertyValue('--selection-background-color'),'transparent');f.position=-1;
+ f.mode='text';a.$('#clear-page').click();await wait(30);assert.equal(f.getValue('plain-text'),'');assert.equal(f.mode,'math');a.$('#undo').click();assert.equal(f.value,equation);
  a.$('#source-open').click();a.$('#source-value').value='\\frac{3}{4}';a.$('#source-apply').click();await wait(30);assert.match(f.value,/\\frac/);
  a.$('[data-mode="text"]').click();assert.equal(f.pageInputMode,'text');a.$('[data-mode="auto"]').click();
  const saved=await a.close();assert.match(saved,/\\\\frac/);assert(JSON.parse(saved).history.entries.length>1);
