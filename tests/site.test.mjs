@@ -31,10 +31,10 @@ const storedPage=(latex='x^2')=>({version:1,title:'Example page',content:{type:'
 function memoryStorage(){const values=new Map();return {getItem:k=>values.get(k)??null,setItem:(k,v)=>values.set(k,v)};}
 test('web scratchpad restores content and undo history and recovers a corrupt primary from its previous copy',()=>{
  const storage=memoryStorage();assert.deepEqual(loadScratchpad(storage),{page:null,recovered:false});
- saveScratchpad(storage,storedPage());assert.equal(loadScratchpad(storage).page.history.entries.length,2);
+ saveScratchpad(storage,storedPage());assert.equal(loadScratchpad(storage).page.documents[0].history.entries.length,2);
  saveScratchpad(storage,storedPage('y^2'));storage.setItem(STORAGE_KEY,'{broken');
- const recovered=loadScratchpad(storage);assert.equal(recovered.recovered,true);assert.equal(recovered.page.content.latex,'x^2');
- saveScratchpad(storage,storedPage('z^2'));assert.equal(loadScratchpad(storage).page.content.latex,'z^2');assert.equal(JSON.parse(storage.getItem(STORAGE_KEY+'.backup')).content.latex,'x^2');
+ const recovered=loadScratchpad(storage);assert.equal(recovered.recovered,true);assert.equal(recovered.page.documents[0].content.latex,'x^2');
+ saveScratchpad(storage,storedPage('z^2'));assert.equal(loadScratchpad(storage).page.documents[0].content.latex,'z^2');assert.equal(JSON.parse(storage.getItem(STORAGE_KEY+'.backup')).documents[0].content.latex,'x^2');
 });
 test('web storage failures preserve the previous saved page and corrupt-only storage is not silently overwritten',()=>{
  const storage=memoryStorage();saveScratchpad(storage,storedPage());const old=storage.getItem(STORAGE_KEY);

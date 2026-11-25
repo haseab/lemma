@@ -1,10 +1,11 @@
-import {validateDocument} from '../src/document.js';
+import {validateDocument,validateNotebook} from '../src/document.js';
 import {validateHistory} from '../src/history.js';
 export const STORAGE_KEY='lemma.web.scratchpad.v1';
 export function validateScratchpad(value){
+ if(value?.version===2)return validateNotebook(value);
  if(value?.version!==1||typeof value.title!=='string')throw Error('Invalid saved scratchpad');
  const content=validateDocument(value.content);
- return {version:1,title:value.title.slice(0,200),content,history:validateHistory(value.history,content.latex)};
+ return validateNotebook({version:2,activeId:'first-page',documents:[{id:'first-page',title:value.title.slice(0,200),content,history:validateHistory(value.history,content.latex)}]});
 }
 export function loadScratchpad(storage){
  let found=false;

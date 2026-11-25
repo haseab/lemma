@@ -37,3 +37,13 @@ test('bundled renderer boots, searches, replaces, imports source, saves history 
  await restored.calls.open({name:'external.lemma',data:JSON.stringify({version:2,title:'Imported example',content:{type:'math-page',latex:'y^2',mode:'auto'}})});await wait(35);assert.equal(restored.$('#title').value,'Imported example');
  await restored.close();assert.equal(restored.calls.saved.documents.length,3);
 });
+
+test('desktop tabs add pages, retain independent history, and reopen the selected page',async()=>{
+ const fixture={version:2,activeId:'first',documents:[{id:'first',title:'First page',updatedAt:1,content:{type:'math-page',latex:'x+1',mode:'auto'}},{id:'second',title:'Second page',updatedAt:1,content:{type:'math-page',latex:'z+1',mode:'auto'}}]};
+ const app=await boot(fixture,'desktop-tabs');assert.equal(app.browser.document.querySelectorAll('[role="tab"]').length,2);
+ app.$('#new-tab').click();assert.equal(app.browser.document.querySelectorAll('[role="tab"]').length,3);const id=app.$('[role="tab"][aria-selected="true"]').dataset.pageId;
+ app.$('#source-open').click();app.$('#source-value').value='y^3';app.$('#source-apply').click();await wait(35);
+ [...app.browser.document.querySelectorAll('[role="tab"]')].find(b=>b.dataset.pageId==='first').click();assert.equal(app.$('#math-page').value,'x+1');
+ [...app.browser.document.querySelectorAll('[role="tab"]')].find(b=>b.dataset.pageId===id).click();assert.equal(app.$('#math-page').value,'y^3');await app.close();
+ const reopened=await boot(app.calls.saved,'desktop-tabs-reload');assert.equal(reopened.$('[role="tab"][aria-selected="true"]').dataset.pageId,id);assert.equal(reopened.$('#math-page').value,'y^3');reopened.$('#undo').click();assert.equal(reopened.$('#math-page').getValue('plain-text'),'');await reopened.close();
+});
