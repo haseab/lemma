@@ -23,3 +23,15 @@
 .tab-context-menu button{display:block;width:100%;height:auto;padding:10px 12px;border:0;border-radius:4px;text-align:left;font:12px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#435a39;background:transparent;cursor:pointer}
 .tab-context-menu button:hover,.tab-context-menu button:focus-visible{background:#edf3e7;outline:none}
 .tab-context-menu [data-tab-action=delete]{color:#9c493e}
+
+/* A shared tab strip, visually attached to the editor below. */
+.page-tabs{align-items:flex-end;gap:4px}
+.page-tab-list{align-self:stretch;align-items:flex-end;gap:0;padding-top:10px}
+.page-tab-item{align-items:flex-end}
+.page-tabs .page-tab{position:relative;height:40px;min-width:120px;max-width:200px;padding:11px 16px;border:1px solid transparent;border-bottom:0;border-radius:8px 8px 0 0;color:#87917f;background:transparent;text-align:left}
+.page-tabs .page-tab[aria-selected=true]{background:#fcfdfb;border-color:#dce4d5;color:#3d5b35;box-shadow:inset 0 2px 0 #8da781}
+.page-tabs .page-tab:not([aria-selected=true]):hover{background:#f4f6f0}
+.page-tabs .new-tab{margin:0 4px 5px}
+.page-tabs .close-tab{top:11px;right:5px}
+.page-tabs #title.tab-title-editor{height:40px;border-radius:8px 8px 0 0}
+@media(max-width:760px){.page-tabs .page-tab{min-width:100px;max-width:150px}}

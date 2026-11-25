@@ -1,0 +1,15 @@
+#welcome-dialog{width:min(420px,calc(100vw - 40px));padding:34px;border:1px solid #dce4d5;border-radius:16px;background:#fcfdf9;color:#344b3a;box-shadow:0 24px 90px #172b2326}
+#welcome-dialog::backdrop{background:#24372d38;backdrop-filter:blur(5px)}
+#welcome-dialog h2{margin:0 0 22px;font:normal 29px/1.2 Georgia,serif;letter-spacing:-.6px}
+#welcome-dialog .welcome-close{position:absolute;right:12px;top:10px;padding:3px 8px;color:#819079;font:22px/1 sans-serif}
+.welcome-creator{margin:0 0 26px}
+.welcome-creator a{display:inline-flex;align-items:center;gap:9px;color:#64755e;text-decoration:none;font:italic 16px/1.4 Georgia,serif}
+.welcome-creator a:hover span{text-decoration:underline;text-underline-offset:3px}
+.welcome-creator img{width:28px;height:28px;object-fit:cover;border-radius:50%}
+#welcome-dialog p{margin:0 0 20px;font-size:14px;line-height:1.8;color:#65745e}
+#welcome-dialog .welcome-start{display:block;width:100%;padding:12px 18px;background:#365b3e;color:#fff;font-size:13px;border-radius:8px}
+#welcome-dialog .welcome-start:hover{background:#294c32}
+#welcome-dialog a:focus-visible,#welcome-dialog button:focus-visible{outline:2px solid #789b6b;outline-offset:4px}
+@media print{#welcome-dialog{display:none!important}}
+
+.welcome-reopen{padding:8px 12px;border:1px solid #dce4d5;color:#4c6651;font-size:12px}

@@ -1,6 +1,7 @@
 const {contextBridge,ipcRenderer}=require('electron');
 contextBridge.exposeInMainWorld('lemma',{
  onBeforeClose:fn=>ipcRenderer.on('before-close',fn),finishClose:()=>ipcRenderer.send('finish-close'),
+ openCreator:url=>ipcRenderer.invoke('open-creator',url),
  load:()=>ipcRenderer.invoke('load'),save:data=>ipcRenderer.invoke('save',data),
  copyText:data=>ipcRenderer.invoke('copy-text',data),
  versions:()=>ipcRenderer.invoke('versions'),readVersion:id=>ipcRenderer.invoke('read-version',id),
