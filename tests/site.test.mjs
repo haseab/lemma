@@ -25,3 +25,20 @@ test('primary buttons select the detected OS, prioritize its card, and use only 
  updatePlatformLinks(d,'mac');assert.equal(d.querySelector('article').id,'download-mac');assert.equal(d.querySelector('[data-primary-download]').textContent,'Download for Mac ↓');
  updatePlatformLinks(d,null);assert.equal(d.querySelector('[data-primary-download]').getAttribute('href'),'#download');assert.equal(d.querySelector('[data-primary-download]').textContent,'View downloads ↓');await browser.happyDOM.close();
 });
+
+const {STORAGE_KEY,loadScratchpad,saveScratchpad}=await import('../site/scratchpad-store.js');
+const storedPage=(latex='x^2')=>({version:1,title:'Example page',content:{type:'math-page',latex,mode:'auto'},history:{version:1,index:1,entries:[{latex:'x',typingMode:'math',selection:{ranges:[[1,1]]}},{latex,typingMode:'math',selection:{ranges:[[1,1]]}}]}});
+function memoryStorage(){const values=new Map();return {getItem:k=>values.get(k)??null,setItem:(k,v)=>values.set(k,v)};}
+test('web scratchpad restores content and undo history and recovers a corrupt primary from its previous copy',()=>{
+ const storage=memoryStorage();assert.deepEqual(loadScratchpad(storage),{page:null,recovered:false});
+ saveScratchpad(storage,storedPage());assert.equal(loadScratchpad(storage).page.history.entries.length,2);
+ saveScratchpad(storage,storedPage('y^2'));storage.setItem(STORAGE_KEY,'{broken');
+ const recovered=loadScratchpad(storage);assert.equal(recovered.recovered,true);assert.equal(recovered.page.content.latex,'x^2');
+ saveScratchpad(storage,storedPage('z^2'));assert.equal(loadScratchpad(storage).page.content.latex,'z^2');assert.equal(JSON.parse(storage.getItem(STORAGE_KEY+'.backup')).content.latex,'x^2');
+});
+test('web storage failures preserve the previous saved page and corrupt-only storage is not silently overwritten',()=>{
+ const storage=memoryStorage();saveScratchpad(storage,storedPage());const old=storage.getItem(STORAGE_KEY);
+ const full={getItem:storage.getItem,setItem:()=>{throw new DOMException('Full','QuotaExceededError');}};
+ assert.throws(()=>saveScratchpad(full,storedPage('z')),/Full/);assert.equal(storage.getItem(STORAGE_KEY),old);
+ storage.setItem(STORAGE_KEY,'bad');assert.throws(()=>loadScratchpad(storage),/preserved/);
+});

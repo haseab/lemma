@@ -75,7 +75,9 @@ MIT. See [LICENSE](LICENSE). MathLive (MIT), Lucide (ISC), Electron (MIT), and V
 
 ## Website
 
-The standalone landing page lives in `site/`. It includes a working MathLive demo and discovers platform downloads from published GitHub Releases. It does not advertise a download until a matching release asset exists.
+The browser scratchpad lives in `site/` and reuses the desktop editor’s math/prose handling, wrapping, clipboard, formatting, and undo logic. A single page and its undo history are saved in browser storage, with a previous saved copy for recovery. Clearing browser data can remove this work; export an editable `.lemma` file for a portable backup. LaTeX import/export, source editing, plain-text export, and browser print-to-PDF are available. No scratchpad content or usage analytics are collected.
+
+Desktop downloads are secondary and are discovered from published GitHub Releases. No download is advertised until a matching release asset exists. The browser version requires the site to load; offline installation and the desktop app’s versioned backup system are not included.
 
 Copy `.env.example` to `.env.local` and set `VITE_REPOSITORY_URL` to the public repository URL, then run:
 
