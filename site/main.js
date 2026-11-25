@@ -1,3 +1,5 @@
+import {installNotationControl} from '../src/notation-controls.js';
+import '../src/notation-controls.css';
 import {installPrinting} from '../src/printing.js';
 import '../src/print.css';
 import {loadReleaseManifest,installDownloadTracking,showDownloadDetails} from './downloads.js';
@@ -35,6 +37,7 @@ const first=freshDocument('Untitled page');
 let notebook={version:2,activeId:first.id,documents:[first]},page=first,blocked=false;
 try{const loaded=loadScratchpad(localStorage);if(loaded.page)notebook=loaded.page;if(loaded.recovered)toast('Recovered your previous saved copy.');}catch(error){blocked=true;toast(error.message);}
 let field,saveTimer,selection,loading=false,sourcePanel;
+installNotationControl($('.toolbar'),()=>field,toast);
 const tabs=createPageTabs($('#page-tabs'),{onSelect:switchPage,onNew:newPage,onClose:closePage,onDuplicate:duplicatePage,getPage:id=>{capture();return notebook.documents.find(d=>d.id===id);}});
 function updateEmpty(){ $('#scratchpad').classList.toggle('has-content',!!field.getValue('plain-text').trim()); }
 function capture(){if(!field||loading)return;page.title=$('#title').value||'Untitled page';page.content={type:'math-page',latex:field.value,mode:page.content.mode};page.history=field.pageHistory.serialize();page.updatedAt=Date.now();}
@@ -97,7 +100,7 @@ const detected=detectDesktopPlatform(navigator),repository=repositorySettings(im
 for(const link of document.querySelectorAll('[data-source]')){if(repository){link.href=repository.url;link.target='_blank';link.rel='noopener noreferrer';}else link.addEventListener('click',()=>toast('Source code link has not been configured.'));}
 void loadGitHubStars($('.github-link'),repository);
 let currentDownloads={};
-function updateDownloads(downloads){currentDownloads=downloads;updatePlatformLinks(document,detected,downloads,repository?repository.url+'/releases':'#scratchpad');for(const link of document.querySelectorAll('[data-primary-download]'))link.hidden=detected?!downloads[detected]:!Object.values(downloads).some(Boolean);showDownloadDetails(document,downloads[detected]);}
+function updateDownloads(downloads){currentDownloads=downloads;updatePlatformLinks(document,detected,downloads,repository?repository.url+'/releases':'#scratchpad');for(const link of document.querySelectorAll('[data-primary-download]'))link.hidden=detected?!downloads[detected]&&!(detected==='mac'&&repository):!repository&&!Object.values(downloads).some(Boolean);showDownloadDetails(document,downloads[detected]);}
 installDownloadTracking($('[data-primary-download]'),()=>currentDownloads[detected]?{...currentDownloads[detected],platform:detected}:null);
 updateDownloads({});
 try{const downloads=await loadReleaseManifest();if(downloads)updateDownloads(downloads);else throw Error('No manifest');}

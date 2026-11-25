@@ -1,3 +1,5 @@
+import {installNotationControl} from './notation-controls.js';
+import './notation-controls.css';
 import {installWelcome} from './welcome.js';
 import './welcome.css';
 import {installPrinting} from './printing.js';
@@ -38,6 +40,7 @@ let notebook,mf,loading=false,blocked=false,dirty=false,failures=0,revision=0,ed
 const autosave=createAutosaveScheduler(persist,{shouldRetry:()=>!blocked});
 function toast(message){$('#toast').textContent=message;$('#toast').classList.add('visible');setTimeout(()=>$('#toast').classList.remove('visible'),6000);}
 const printing=installPrinting({onError:()=>toast('Printing failed. Please try again.')});
+installNotationControl($('.toolbar'),()=>mf,toast);
 const active=()=>notebook.documents.find(d=>d.id===notebook.activeId);
 function trimHistories(){
  const bytes=value=>new TextEncoder().encode(JSON.stringify(value)).length;

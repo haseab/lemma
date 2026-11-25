@@ -22,7 +22,7 @@ test('primary buttons select the detected OS, prioritize its card, and use only 
  assert.equal(d.querySelector('[data-primary-download]').textContent,'Download for Windows ↓');assert.equal(d.querySelector('[data-primary-download]').getAttribute('href'),'#download-windows');assert.equal(d.querySelector('article').id,'download-windows');
  updatePlatformLinks(d,'windows',{windows:{url:'https://example.org/windows.zip'}});
  for(const link of d.querySelectorAll('[data-primary-download]'))assert.equal(link.getAttribute('href'),'https://example.org/windows.zip');
- updatePlatformLinks(d,'mac');assert.equal(d.querySelector('article').id,'download-mac');assert.equal(d.querySelector('[data-primary-download]').textContent,'Download for Mac ↓');
+ updatePlatformLinks(d,'mac');assert.equal(d.querySelector('article').id,'download-mac');assert.equal(d.querySelector('[data-primary-download]').textContent,'Download ↓');assert(d.querySelector('[data-platform-icon=mac]'));assert.equal(d.querySelector('[data-primary-download]').getAttribute('aria-label'),'Download for Mac');
  updatePlatformLinks(d,null);assert.equal(d.querySelector('[data-primary-download]').getAttribute('href'),'#download');assert.equal(d.querySelector('[data-primary-download]').textContent,'View downloads ↓');await browser.happyDOM.close();
 });
 
@@ -74,6 +74,16 @@ test('GitHub badge uses live star counts including zero and keeps its link on AP
  assert.equal(requested,'https://api.github.com/repos/example/lemma');assert.equal(link.querySelector('[data-star-count]').textContent,'1,234');assert.equal(link.querySelector('.github-stars').hidden,false);assert.match(link.getAttribute('aria-label'),/1,234 stars/);
  await loadGitHubStars(link,repository,async()=>({ok:true,json:async()=>({stargazers_count:0})}));assert.equal(link.querySelector('[data-star-count]').textContent,'0');
  link.querySelector('.github-stars').hidden=true;
- for(const fetcher of [async()=>({ok:false}),async()=>{throw Error('Offline');},async()=>({ok:true,json:async()=>({stargazers_count:'invalid'})})]){await loadGitHubStars(link,repository,fetcher);assert.equal(link.querySelector('.github-stars').hidden,true);assert.equal(link.getAttribute('href'),repository.url);}
+ for(const fetcher of [async()=>({ok:false}),async()=>{throw Error('Offline');},async()=>({ok:true,json:async()=>({stargazers_count:'invalid'})})]){await loadGitHubStars(link,repository,fetcher);assert.equal(link.querySelector('.github-stars').hidden,false);assert.equal(link.querySelector('[data-star-count]').textContent,'0');assert.equal(link.getAttribute('href'),repository.url);}
+ await browser.happyDOM.close();
+});
+
+test('GitHub star component remains visible offline and restores a real cached count',async()=>{
+ const browser=new Window({url:'https://example.org/'}),d=browser.document;
+ const markup='<a><span class="github-stars"><span data-star-count>…</span></span></a>';
+ d.body.innerHTML=markup;let link=d.querySelector('a');
+ await loadGitHubStars(link,repository,async()=>{throw Error('Offline');});assert.equal(link.querySelector('.github-stars').hidden,false);assert.equal(link.querySelector('[data-star-count]').textContent,'…');
+ await loadGitHubStars(link,repository,async()=>({ok:true,json:async()=>({stargazers_count:42})}));
+ d.body.innerHTML=markup;link=d.querySelector('a');await loadGitHubStars(link,repository,async()=>({ok:false}));assert.equal(link.querySelector('[data-star-count]').textContent,'42');assert.equal(link.querySelector('.github-stars').hidden,false);
  await browser.happyDOM.close();
 });
