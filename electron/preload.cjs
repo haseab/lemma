@@ -7,7 +7,7 @@ contextBridge.exposeInMainWorld('lemma',{
  ready:()=>ipcRenderer.invoke('renderer-ready'),
  exportDocument:data=>ipcRenderer.invoke('export-document',data),
  exportLatex:data=>ipcRenderer.invoke('export-latex',data),exportText:data=>ipcRenderer.invoke('export-text',data),
- importDocument:()=>ipcRenderer.invoke('import-document'),exportPDF:()=>ipcRenderer.invoke('export-pdf'),
+ importDocument:()=>ipcRenderer.invoke('import-document'),exportPDF:()=>ipcRenderer.invoke('export-pdf'),print:()=>ipcRenderer.invoke('print-page'),
  onAction:fn=>ipcRenderer.on('menu-action',(_,action)=>fn(action)),
  onOpenFile:fn=>ipcRenderer.on('open-page-file',(_,file)=>fn(file)),onFileError:fn=>ipcRenderer.on('file-open-error',(_,message)=>fn(message))
 });

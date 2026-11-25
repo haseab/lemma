@@ -1,0 +1,25 @@
+/* Shared by the website, desktop Print, and desktop PDF export. */
+@page{size:auto;margin:20mm}
+@media print{
+ html,body{background:#fff!important;height:auto!important;overflow:visible!important}
+ body>*:not(#app):not(main),
+ body>main>*:not(.workspace),
+ body>main>.workspace>*:not(#scratchpad),
+ #app>*:not(.workspace),#app>.workspace>*:not(#page),
+ #scratchpad>*:not(.paper),.paper>*:not(#surface),#page>*:not(#surface){display:none!important}
+ #app,.workspace,body>main,#scratchpad,#page,.paper,#surface{
+  display:block!important;position:static!important;inset:auto!important;
+  width:100%!important;max-width:none!important;height:auto!important;min-height:0!important;
+  max-height:none!important;overflow:visible!important;margin:0!important;padding:0!important;
+  border:0!important;border-radius:0!important;box-shadow:none!important;background:#fff!important;
+ }
+ #math-page{
+  min-height:0!important;height:auto!important;overflow:visible!important;padding:0!important;
+  border:0!important;outline:0!important;box-shadow:none!important;background:#fff!important;
+  color:#1a1a1a!important;font-size:20px;print-color-adjust:exact;-webkit-print-color-adjust:exact;
+  --selection-background-color:transparent;--contains-highlight-background-color:transparent;
+  --text-highlight-background-color:transparent;
+ }
+ #math-page::part(container),#math-page::part(content){min-height:0!important;overflow:visible!important;padding:0!important}
+ #math-page::part(virtual-keyboard-toggle),#math-page::part(menu-toggle){display:none!important}
+}

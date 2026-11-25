@@ -1,3 +1,5 @@
+import {installPrinting} from './printing.js';
+import './print.css';
 import {installSourcePanel} from './source-panel.js';
 import {editorHints} from './editor-hints.js';
 import {installTooltips} from './tooltips.js';
@@ -32,6 +34,7 @@ for(const dialog of document.querySelectorAll('dialog'))dialog.querySelector('[d
 let notebook,mf,loading=false,blocked=false,dirty=false,failures=0,revision=0,editRevision=0,formatSelection=null,sourcePanel=null,matchIndex=-1;
 const autosave=createAutosaveScheduler(persist,{shouldRetry:()=>!blocked});
 function toast(message){$('#toast').textContent=message;$('#toast').classList.add('visible');setTimeout(()=>$('#toast').classList.remove('visible'),6000);}
+const printing=installPrinting({onError:()=>toast('Printing failed. Please try again.')});
 const active=()=>notebook.documents.find(d=>d.id===notebook.activeId);
 function trimHistories(){
  const bytes=value=>new TextEncoder().encode(JSON.stringify(value)).length;
@@ -115,7 +118,7 @@ async function importFile(file){
 async function exportPage(kind){
  capture();
  try{
-  if(kind==='pdf'){await document.fonts.ready;if(window.lemma)await window.lemma.exportPDF();else window.print();return;}
+  if(kind==='pdf'){await printing.pdf();return;}
   let data,extension;
   if(kind==='lemma'){data=JSON.stringify({version:2,title:active().title,content:active().content,...(active().legacyContent?{legacyContent:active().legacyContent}:{})},null,2);extension='lemma';}
   else if(kind==='latex'){data=exportLatex(mf.value);extension='tex';}
@@ -150,7 +153,7 @@ const actions={
   else{const input=document.createElement('input');input.type='file';input.accept='.lemma,.folio,.json,.tex,.latex';file=await new Promise(resolve=>{input.onchange=async()=>{const f=input.files[0];resolve(f?{name:f.name,data:await f.text()}:null);};input.oncancel=()=>resolve(null);input.click();});}
   if(file)await importFile(file);
  }catch(error){toast(error.message||'Could not open the file.');}},
- export:()=>$('#export-dialog').showModal(),latex:()=>exportPage('latex'),text:()=>exportPage('text'),pdf:()=>exportPage('pdf'),
+ print:()=>printing.print(),export:()=>$('#export-dialog').showModal(),latex:()=>exportPage('latex'),text:()=>exportPage('text'),pdf:()=>exportPage('pdf'),
  undo:()=>textControlFocused()?document.execCommand('undo'):mf.pageHistory.undo(),redo:()=>textControlFocused()?document.execCommand('redo'):mf.pageHistory.redo(),find:openFind,replace:openFind,findNext:()=>nextMatch(1),findPrevious:()=>nextMatch(-1),versions:showVersions,insertLatex:()=>sourcePanel.open(),
  copyLatex:async()=>{try{const data=mf.selectionIsCollapsed?mf.value:mf.getValue(mf.selection,'latex');if(window.lemma)await window.lemma.copyText(data);else await navigator.clipboard.writeText(data);toast('LaTeX copied.');}catch{toast('Could not copy. Open LaTeX source to select and copy it.');}}
 };

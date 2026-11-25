@@ -19,6 +19,14 @@ export function installPageWrapping(field){
  .ML__content > .ML__latex > .ML__multiline_environment > .col-align-l > .ML__vlist-t > .ML__vlist-r:first-child > .ML__vlist > span > .ML__pstrut{display:none}
  .ML__content > .ML__latex > .ML__multiline_environment > .col-align-l > .ML__vlist-t > .ML__vlist-r:first-child > .ML__vlist > span > span:last-child{display:block!important;height:auto!important;min-height:1.8em;white-space:normal;line-height:1.8}
  .ML__content .ML__text{white-space:pre-wrap!important}
+ @media print{
+  .ML__caret::after,.ML__text-caret::after,.ML__latex-caret::after{display:none!important}
+  .ML__selection,.ML__contains-highlight,.ML__tooltip-container{display:none!important}
+  .ML__focused .ML__text{background:transparent!important}
+  .ML__focused .ML__selected,.ML__focused .ML__selected .ML__contains-caret,.ML__focused .ML__selected .ML__smart-fence__close,.ML__focused .ML__selected .ML__placeholder{color:inherit}
+  .ML__empty-line-anchor::after{display:none!important}
+  .ML__content > .ML__latex > .ML__multiline_environment > .col-align-l > .ML__vlist-t > .ML__vlist-r:first-child > .ML__vlist > span{break-inside:avoid-page}
+ }
  `;
  field.shadowRoot.append(style);
 }

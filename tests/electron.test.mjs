@@ -13,7 +13,7 @@ async function harness(t,platform='darwin'){
  Object.assign(app,{getPath:()=>dir,setPath:()=>{},setName:()=>{},whenReady:()=>new Promise(resolve=>{resolveReady=resolve;}),isReady:()=>ready,requestSingleInstanceLock:()=>true,quit:()=>{}});
  class Window extends EventEmitter{
   static windows=[];static getAllWindows(){return this.windows;}
-  constructor(options){super();this.options=options;this.webContents=new EventEmitter();Object.assign(this.webContents,{mainFrame:{},send:(...args)=>sent.push(args),setWindowOpenHandler:()=>{}});Window.windows.push(this);}
+  constructor(options){super();this.options=options;this.webContents=new EventEmitter();Object.assign(this.webContents,{mainFrame:{},send:(...args)=>sent.push(args),setWindowOpenHandler:()=>{},print:(options,callback)=>{app.printOptions=options;callback(app.printSuccess!==false,app.printReason);}});Window.windows.push(this);}
   loadFile(){}show(){}close(){this.emit('closed');Window.windows=Window.windows.filter(w=>w!==this);}
  }
  const ipc=new EventEmitter();ipc.handle=(name,fn)=>handlers.set(name,fn);
@@ -40,4 +40,16 @@ test('Windows uses native window chrome and standard File-menu accelerators',asy
  assert.equal(h.app.menu[0].label,'File');
  assert(h.app.menu[0].submenu.some(item=>item.accelerator==='CmdOrCtrl+O'));
  assert(h.app.menu[0].submenu.some(item=>item.role==='quit'));
+});
+
+for(const platform of ['darwin','win32'])test(`Print menu and trusted IPC open the native dialog on ${platform}`,async t=>{
+ const h=await harness(t,platform);await h.start();
+ const file=h.app.menu.find(item=>item.label==='File');
+ const item=file.submenu.find(item=>item.accelerator==='CmdOrCtrl+P');
+ assert(item);item.click();assert.equal(h.sent.at(-1)[1],'print');
+ assert.equal(await h.invoke('print-page'),true);
+ assert.equal(h.app.printOptions.silent,false);assert.equal(h.app.printOptions.printBackground,true);
+ await assert.rejects(async()=>h.handlers.get('print-page')({sender:{},senderFrame:{}}),/Invalid application request/);
+ h.app.printSuccess=false;h.app.printReason='Print job canceled';assert.equal(await h.invoke('print-page'),false);
+ h.app.printReason='Print job failed';await assert.rejects(()=>h.invoke('print-page'),/Could not print/);
 });
