@@ -65,6 +65,8 @@ A click is a button activation. A request is a successful full GET or a range be
 
 ## Verification
 
+The optional manual GitHub workflow targets a trusted self-hosted macOS ARM64 runner with the `lemma-release` label. Register it only on the designated development host. It does not execute on hosted runners or automatically run untrusted fork pull requests. Local release commands remain usable without a runner.
+
 ```sh
 npm test
 npm run build
