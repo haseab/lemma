@@ -19,7 +19,7 @@ npm run cloudflare:deploy
 npm run cloudflare:stats-secret
 ```
 
-The generated `.wrangler/lemma.json` is private. The committed `cloudflare/wrangler.example.json` contains only reusable examples. `LEMMA_DOMAIN` attaches the apex and www custom domains. Existing parking A/CNAME records must be removed before attachment; preserve unrelated MX/TXT records and keep a private rollback copy. Configure the registrar with the nameservers assigned to the Cloudflare zone and wait for activation and TLS issuance.
+The generated `.wrangler/lemma.json` is private. The committed `cloudflare/wrangler.example.json` contains only reusable examples. `LEMMA_DOMAIN` attaches the apex and www custom domains, redirecting www to the apex so saved pages use one browser storage origin. Existing parking A/CNAME records must be removed before attachment; preserve unrelated MX/TXT records and keep a private rollback copy. Configure the registrar with the nameservers assigned to the Cloudflare zone and wait for activation and TLS issuance.
 
 The website's source link is configured with `VITE_REPOSITORY_URL`. Download buttons appear after a valid release is published. The same-origin `/api/releases` manifest supplies version, architecture, minimum system, size, checksum, and release notes. GitHub Releases remains a fallback for older deployments.
 

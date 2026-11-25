@@ -28,6 +28,7 @@ async function limitedJson(request){
 }
 export default {async fetch(request,env,ctx){
  const url=new URL(request.url),path=url.pathname;
+ if(env.CANONICAL_HOST&&url.hostname==='www.'+env.CANONICAL_HOST){url.hostname=env.CANONICAL_HOST;return Response.redirect(url.href,308);}
  try{
   if(path==='/api/releases'){
    if(request.method!=='GET')return json({error:'Method not allowed'},405);

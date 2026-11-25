@@ -45,3 +45,8 @@ test('notarization supports Keychain or runtime credentials and rejects incomple
  assert.throws(()=>notaryArguments({APPLE_ID:'person@example.org'}),/Configure/);
  assert.deepEqual(notaryArguments({APPLE_ID:'person@example.org',APPLE_TEAM_ID:'EXAMPLE123',APPLE_APP_PASSWORD:'example-test-value'}),['--apple-id','person@example.org','--team-id','EXAMPLE123','--password','example-test-value']);
 });
+
+
+test('www redirects to the configured primary origin so local pages use one browser storage origin',async()=>{
+ const f=fixture();f.env.CANONICAL_HOST='example.org';const response=await worker.fetch(new Request('https://www.example.org/stats.html?days=7'),f.env,{waitUntil:()=>{}});assert.equal(response.status,308);assert.equal(response.headers.get('Location'),'https://example.org/stats.html?days=7');f.close();
+});
