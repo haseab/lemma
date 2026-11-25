@@ -13,3 +13,8 @@ html[data-platform="windows"] header{padding-left:22px}
 .brand .brand-mark{display:inline-flex;color:var(--accent)}.brand .brand-mark svg{width:30px;height:32px;display:block}
 
 header .page-tabs{min-width:0;flex:1}header .page-tab-list{max-width:100%}header .page-tabs #title{max-width:180px}header #save-status{flex-shrink:0}@media(max-width:850px){header .page-tabs .page-tab{max-width:130px}}
+
+/* Reserve traffic-light space only in the native Mac title bar. */
+header,.show-library header,html[data-platform="windows"] header{padding-left:12px}
+html[data-shell="mac-desktop"] header{padding-left:95px}
+header .page-tabs{align-self:stretch}

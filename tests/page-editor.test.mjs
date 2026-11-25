@@ -271,3 +271,24 @@ test('rich-text clipboard fallback keeps a single equation inline and escapes pr
  let payload=clipboardPayload(f);assert.equal(payload['text/plain'],'x+1');assert.match(payload['text/html'],/>x\+1<\/span>/);assert.doesNotMatch(payload['text/html'],/<mrow|<p|<div/);
  f.setValue('\\text{A < B \\& C}',{mode:'math'});f.selection={ranges:[[0,f.lastOffset]]};payload=clipboardPayload(f);assert.match(payload['text/html'],/A &lt; B &amp; C/);f.parentElement.remove();
 });
+
+test('empty-row carets keep inline geometry before typing and after deleting a row',async()=>{
+ const c=document.createElement('div');document.body.append(c);
+ const f=createPageMathfield(c,'\\displaylines{}',()=>{});
+ const rowSelector='.ML__multiline_environment > .col-align-l > .ML__vlist-t > .ML__vlist-r:first-child > .ML__vlist > span';
+ const check=()=>{
+  const row=f.shadowRoot.querySelector(rowSelector);assert(row);
+  const anchor=row.querySelector('.ML__empty-line-anchor');assert(anchor);
+  const blockRule=f.shadowRoot.querySelector('[data-lemma-wrapping]').sheet.cssRules;
+  const contentRule=[...blockRule].find(rule=>rule.selectorText?.includes('span:last-child'));
+  assert(contentRule);assert(!row.querySelector('.ML__empty-line-anchor').matches(contentRule.selectorText));
+  const caret=document.createElement('span');caret.className='ML__caret';row.append(caret);
+  assert(!caret.matches(contentRule.selectorText));caret.remove();
+ };
+ await new Promise(r=>setTimeout(r,30));check();
+ f.executeCommand(['insert','x']);await new Promise(r=>setTimeout(r,30));
+ assert(f.shadowRoot.querySelector(rowSelector+' > span:last-child').textContent.includes('x'));
+ f.selection={ranges:[[0,f.lastOffset]]};f.executeCommand('deleteBackward');
+ await new Promise(r=>setTimeout(r,30));check();
+ f.remove();c.remove();
+});

@@ -17,7 +17,7 @@ async function harness(t,platform='darwin'){
   loadFile(){}show(){}close(){this.emit('closed');Window.windows=Window.windows.filter(w=>w!==this);}
  }
  const ipc=new EventEmitter();ipc.handle=(name,fn)=>handlers.set(name,fn);
- const context={require:name=>name==='electron'?{app,BrowserWindow:Window,ipcMain:ipc,dialog:{},Menu:{buildFromTemplate:t=>t,setApplicationMenu:menu=>{app.menu=menu;}},clipboard:{writeText:()=>{}}}:require(name),process:{env:{},argv:['electron'],platform},__dirname:path.resolve('electron'),console,setTimeout,Buffer};
+ const context={require:name=>name==='electron'?{app,BrowserWindow:Window,ipcMain:ipc,shell:{openExternal:async url=>{app.openedURL=url;}},dialog:{},Menu:{buildFromTemplate:t=>t,setApplicationMenu:menu=>{app.menu=menu;}},clipboard:{writeText:()=>{}}}:require(name),process:{env:{},argv:['electron'],platform},__dirname:path.resolve('electron'),console,setTimeout,Buffer,URL};
  vm.runInNewContext(await fs.readFile(new URL('../electron/main.cjs',import.meta.url),'utf8'),context);
  const invoke=(name,...args)=>{const w=Window.windows.at(-1);return handlers.get(name)({sender:w.webContents,senderFrame:w.webContents.mainFrame},...args);};
  const start=async()=>{ready=true;resolveReady();await new Promise(setImmediate);};
@@ -52,4 +52,10 @@ for(const platform of ['darwin','win32'])test(`Print menu and trusted IPC open t
  await assert.rejects(async()=>h.handlers.get('print-page')({sender:{},senderFrame:{}}),/Invalid application request/);
  h.app.printSuccess=false;h.app.printReason='Print job canceled';assert.equal(await h.invoke('print-page'),false);
  h.app.printReason='Print job failed';await assert.rejects(()=>h.invoke('print-page'),/Could not print/);
+});
+
+test('creator profile opens externally only for validated public profile URLs',async t=>{
+ const h=await harness(t);await h.start();
+ await h.invoke('open-creator','https://x.com/example_author');assert.equal(h.app.openedURL,'https://x.com/example_author');
+ for(const url of ['file:///etc/passwd','https://example.com/profile','https://x.com/example_author?secret=1','https://user:pass@x.com/example_author'])await assert.rejects(async()=>h.invoke('open-creator',url),/Invalid profile link/);
 });

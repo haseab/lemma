@@ -1,4 +1,4 @@
-const {app,BrowserWindow,ipcMain,dialog,Menu,clipboard}=require('electron');
+const {app,BrowserWindow,ipcMain,dialog,Menu,clipboard,shell}=require('electron');
 const fs=require('node:fs/promises');
 const path=require('node:path');
 const {NotebookStore}=require('./notebook-store.cjs');
@@ -46,6 +46,11 @@ else app.whenReady().then(()=>{
  store=new NotebookStore(notebookDirectory);
  handle('load',()=>store.load());
  handle('save',data=>store.save(data));
+ handle('open-creator',url=>{
+  const target=new URL(url);
+  if(target.protocol!=='https:'||target.hostname!=='x.com'||target.username||target.password||target.search||target.hash||!/^\/[A-Za-z0-9_]{1,15}$/.test(target.pathname))throw Error('Invalid profile link');
+  return shell.openExternal(target.href);
+ });
  handle('copy-text',data=>{if(typeof data!=='string'||data.length>2_000_000)throw Error('Invalid clipboard content');clipboard.writeText(data);});
  handle('versions',()=>store.listVersions());
  handle('read-version',id=>store.readVersion(id));

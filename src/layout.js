@@ -15,9 +15,10 @@ export function installPageWrapping(field){
  .ML__content > .ML__latex > .ML__multiline_environment > .col-align-l > .ML__vlist-t > .ML__vlist-r:first-child > .ML__vlist{display:block;height:auto!important;width:100%;position:static}
  .ML__content > .ML__latex > .ML__multiline_environment > .col-align-l > .ML__vlist-t > .ML__vlist-r:not(:first-child),
  .ML__content > .ML__latex > .ML__multiline_environment > .col-align-l > .ML__vlist-t > .ML__vlist-r > .ML__vlist-s{display:none}
- .ML__content > .ML__latex > .ML__multiline_environment > .col-align-l > .ML__vlist-t > .ML__vlist-r:first-child > .ML__vlist > span{display:block;position:static;height:auto;min-height:1.8em;margin-bottom:.35em}
+ .ML__content > .ML__latex > .ML__multiline_environment > .col-align-l > .ML__vlist-t > .ML__vlist-r:first-child > .ML__vlist > span{display:block;position:static;height:auto;min-height:1.8em;line-height:1.8;margin-bottom:.35em}
  .ML__content > .ML__latex > .ML__multiline_environment > .col-align-l > .ML__vlist-t > .ML__vlist-r:first-child > .ML__vlist > span > .ML__pstrut{display:none}
- .ML__content > .ML__latex > .ML__multiline_environment > .col-align-l > .ML__vlist-t > .ML__vlist-r:first-child > .ML__vlist > span > span:last-child{display:block!important;height:auto!important;min-height:1.8em;white-space:normal;line-height:1.8}
+ .ML__content > .ML__latex > .ML__multiline_environment > .col-align-l > .ML__vlist-t > .ML__vlist-r:first-child > .ML__vlist > span > span:last-child:not(.ML__caret):not(.ML__text-caret):not(.ML__latex-caret):not(.ML__empty-line-anchor){display:block!important;height:auto!important;min-height:1.8em;white-space:normal;line-height:1.8}
+ .ML__content > .ML__latex > .ML__multiline_environment > .col-align-l > .ML__vlist-t > .ML__vlist-r:first-child > .ML__vlist > span > .ML__empty-line-anchor{height:0!important;vertical-align:baseline!important}
  .ML__content .ML__text{white-space:pre-wrap!important}
  @media print{
   .ML__caret::after,.ML__text-caret::after,.ML__latex-caret::after{display:none!important}
