@@ -1,0 +1,26 @@
+node_modules/
+dist/
+release/
+deliverables/
+.DS_Store
+*.log
+
+# Local settings, credentials, and tool state
+.env
+.env.*
+!.env.example
+.npmrc
+*.pem
+*.key
+*.p12
+*.pfx
+.bb/
+.agents/
+.codex/
+
+# User documents and recovery copies
+*.lemma
+*.folio
+notebook.json*
+*.before-*
+*.tmp

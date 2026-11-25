@@ -1,0 +1,27 @@
+{
+  "name": "lemma-math",
+  "productName": "Lemma",
+  "version": "0.2.7",
+  "private": true,
+  "description": "A quiet place to think in words and equations",
+  "type": "module",
+  "main": "electron/main.cjs",
+  "packageManager": "npm@11.8.0",
+  "scripts": {
+    "build": "node scripts/notices.mjs && vite build",
+    "start": "electron .",
+    "test": "node --conditions=browser --conditions=development --test tests/*.test.mjs",
+    "package": "npm run build && electron-packager . Lemma --platform=darwin --arch=arm64 --out=deliverables --overwrite --ignore='^/(release|deliverables|tests|scripts|src|node_modules)(/|$)' --prune=false --app-bundle-id=app.folio.math --app-category-type=public.app-category.productivity --icon=assets/Lemma.icns && node scripts/sign.mjs"
+  },
+  "dependencies": {
+    "lucide": "0.468.0",
+    "mathlive": "0.111.4"
+  },
+  "devDependencies": {
+    "@electron/packager": "20.3.0",
+    "electron": "45.5.0",
+    "happy-dom": "21.0.4",
+    "vite": "8.3.8"
+  },
+  "license": "MIT"
+}

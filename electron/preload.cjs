@@ -1,0 +1,2 @@
+const {contextBridge,ipcRenderer}=require('electron');
+contextBridge.exposeInMainWorld('lemma',{onBeforeClose:fn=>ipcRenderer.on('before-close',fn),finishClose:()=>ipcRenderer.send('finish-close'),load:()=>ipcRenderer.invoke('load'),save:data=>ipcRenderer.invoke('save',data),exportDocument:data=>ipcRenderer.invoke('export-document',data),importDocument:()=>ipcRenderer.invoke('import-document'),exportPDF:()=>ipcRenderer.invoke('export-pdf'),onAction:fn=>ipcRenderer.on('menu-action',(_,action)=>fn(action))});
