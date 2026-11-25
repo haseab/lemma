@@ -73,6 +73,8 @@ For isolated development profiles, `LEMMA_DATA_DIR` accepts an absolute runtime 
 
 MIT. See [LICENSE](LICENSE). MathLive (MIT), Lucide (ISC), Electron (MIT), and Vite (MIT) retain their respective licenses. Dependency license notices are included in `THIRD-PARTY-NOTICES.txt` and the application bundle.
 
+Brand icons can be regenerated on macOS with `node scripts/icons.mjs`.
+
 ## Website
 
 The browser scratchpad lives in `site/` and reuses the desktop editor’s math/prose handling, wrapping, clipboard, formatting, and undo logic. A single page and its undo history are saved in browser storage, with a previous saved copy for recovery. Clearing browser data can remove this work; export an editable `.lemma` file for a portable backup. LaTeX import/export, source editing, plain-text export, and browser print-to-PDF are available. No scratchpad content or usage analytics are collected.

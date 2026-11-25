@@ -1,1 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80"><rect width="80" height="80" rx="19" fill="#15251b"/><text x="16" y="60" font-family="Georgia,serif" font-style="italic" font-size="67" fill="#c5e8b7">λ</text></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80"><rect width="80" height="80" rx="19" fill="#15251b"/><g fill="#c5e8b7" transform="translate(12 12) scale(1.75)"><circle cx="16" cy="7" r="3.5"/><circle cx="7" cy="24" r="3.5"/><circle cx="25" cy="24" r="3.5"/></g></svg>

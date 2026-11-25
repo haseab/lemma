@@ -7,9 +7,11 @@ NSColor(calibratedRed:0.92,green:0.94,blue:0.88,alpha:1).setFill()
 NSBezierPath(roundedRect:frame,xRadius:214,yRadius:214).fill()
 NSColor(calibratedRed:0.99,green:0.99,blue:0.97,alpha:1).setFill()
 NSBezierPath(roundedRect:NSRect(x:164,y:122,width:696,height:780),xRadius:72,yRadius:72).fill()
-let style = NSMutableParagraphStyle(); style.alignment = .center
-let attrs: [NSAttributedString.Key:Any] = [.font:NSFont(name:"Georgia-Italic",size:530) ?? NSFont.systemFont(ofSize:530),.foregroundColor:NSColor(calibratedRed:0.24,green:0.38,blue:0.27,alpha:1),.paragraphStyle:style]
-("λ" as NSString).draw(in:NSRect(x:150,y:200,width:724,height:650),withAttributes:attrs)
+// The therefore mark uses circles rather than a font-dependent glyph.
+NSColor(calibratedRed:0.24,green:0.38,blue:0.27,alpha:1).setFill()
+for center in [NSPoint(x:512,y:660),NSPoint(x:368,y:388),NSPoint(x:656,y:388)] {
+ NSBezierPath(ovalIn:NSRect(x:center.x-56,y:center.y-56,width:112,height:112)).fill()
+}
 NSColor(calibratedRed:0.66,green:0.75,blue:0.58,alpha:1).setFill()
 NSBezierPath(roundedRect:NSRect(x:302,y:220,width:420,height:12),xRadius:6,yRadius:6).fill()
 image.unlockFocus()

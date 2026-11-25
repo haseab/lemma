@@ -1,4 +1,5 @@
 import 'mathlive/static.css';
+import {brandMark} from '../src/brand.js';
 import {loadGitHubStars} from './github-stars.js';
 import {installFullscreen} from './fullscreen.js';
 import {validateLatex} from 'mathlive';
@@ -16,6 +17,7 @@ import {detectDesktopPlatform,updatePlatformLinks} from './platform.js';
 MathfieldElement.fontsDirectory=new URL('./fonts',document.baseURI).href;MathfieldElement.soundsDirectory=null;
 createIcons({icons:{Github,Star,ArrowUpRight,FileText,FolderOpen,Download,Bold,Italic,Undo2,Redo2,CodeXml,CircleHelp,Plus,Eraser,Maximize2,Minimize2}});
 const $=s=>document.querySelector(s);
+for(const mark of document.querySelectorAll('[data-brand-mark]'))mark.innerHTML=brandMark;
 installFullscreen(document.documentElement,$('#fullscreen'));
 let toastTimer;function toast(message){$('#toast').textContent=message;$('#toast').classList.add('visible');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('#toast').classList.remove('visible'),5500);}
 let page={version:1,title:'Untitled page',content:{type:'math-page',latex:EMPTY_PAGE,mode:'auto'}},blocked=false;
