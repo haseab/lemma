@@ -486,3 +486,9 @@ test('pasted and dictated fragments use the operand before the insertion point',
  const f=exponentScratch('x');installPageHistory(f);insertClipboard(f,{'text/plain':' is in real numbers'});await settle();assert.match(f.value,/\\in/);assert(!f.value.includes('is in'));f.pageHistory.undo();assert.equal(f.value,'x');
  f._mathfield.onInput(' squared plus two');await settle();assert.match(f.value,/x\^2/);assert.equal(f.errors.length,0);f.parentElement.remove();
 });
+test('comma-separated quantified predicates convert through paste and dictation with Undo',async()=>{
+ const f=scratch();installPageHistory(f);
+ insertClipboard(f,{'text/plain':'for all T, u is less than or equal to seven'});await settle();assert.match(f.value,/\\forall/);assert.match(f.value,/\\le/);assert.equal(f.errors.length,0);
+ const pasted=f.value;f.pageHistory.undo();assert.equal(f.getValue('plain-text'),'');f.pageHistory.redo();assert.equal(f.value,pasted);
+ f.selection={ranges:[[0,f.lastOffset]]};f._mathfield.onInput('there exists q, q is greater than three.');await settle();assert.match(f.value,/\\exists/);assert.match(f.value,/q>3/);assert.equal(f.errors.length,0);f.pageHistory.undo();assert.equal(f.value,pasted);f.parentElement.remove();
+});
