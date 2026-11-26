@@ -1,7 +1,7 @@
 import {insertPageBreak} from './editing.js';
 import {convertLatexToMathMl,validateLatex} from 'mathlive';
-import {importLatex,looksLikeLatex,mixedTextToLatex,readableSelection,splitDisplayRows} from './formats.js';
-import {looksLikeProse} from './prose.js';
+import {importLatex,looksLikeLatex,readableSelection,splitDisplayRows} from './formats.js';
+import {plainInputToLatex} from './plain-input.js';
 export function clipboardPayload(field){
  const latex=field.getValue(field.selection,'latex');
  const mathml=convertLatexToMathMl(latex);
@@ -17,8 +17,7 @@ export function insertClipboard(field,types,{onError=()=>{}}={}){
  try{
   let value;
   if(latex||field.pageInputMode!=='text'&&looksLikeLatex(source))value=importLatex(source);
-  else if(field.pageInputMode==='text'||looksLikeProse(source,field.notationGroups,field.customDictionaries))value=mixedTextToLatex(source);
-  else value=source;
+  else value=plainInputToLatex(source,{groups:field.notationGroups,libraries:field.customDictionaries,shortcuts:field.getNotationShortcuts?.(),mode:field.pageInputMode,afterMath:pasteFollowsMath(field)});
   if(validateLatex(value).length)throw Error('Pasted content contains unsupported or incomplete LaTeX. The current selection was preserved.');
   field.proseSuspended=true;
   const insert=()=>insertLatexContent(field,value);
@@ -27,7 +26,28 @@ export function insertClipboard(field,types,{onError=()=>{}}={}){
   return true;
  }catch(error){onError(error.message);return true;}
 }
+function pasteFollowsMath(field){
+ const model=field._mathfield.model;
+ let offset=Math.min(...field.selection.ranges.flat());
+ // A separating space can be a text atom, even within an otherwise math row.
+ for(let scanned=0;offset>0&&scanned<100;scanned++,offset--){
+  const atom=model.at(offset);
+  if(/^\s+$/.test(atom?.value||''))continue;
+  return atom?.mode==='math'&&(!!atom.superscript?.length||!!atom.subscript?.length||['genfrac','surd','leftright'].includes(atom.type)||/^[A-Za-z0-9α-ωΑ-Ω]$/.test(atom.value||''));
+ }
+ return false;
+}
 export function installClipboard(field,onError){
+ // The keyboard delegate receives completed text from transcription tools.
+ // Hook that boundary rather than beforeinput, which MathLive also emits for
+ // internal formatting, source edits, and caret operations.
+ const editor=field._mathfield,originalInput=editor.onInput.bind(editor);
+ editor.onInput=text=>{
+  if(!field.proseSuspended&&field.mode!=='latex'&&typeof text==='string'&&text.length>1&&/[A-Za-z]/.test(text)){
+   insertClipboard(field,{'text/plain':text},{onError});return;
+  }
+  return originalInput(text);
+ };
  field.addEventListener('copy',event=>{
   if(field.selectionIsCollapsed||!event.clipboardData)return;
   const payload=clipboardPayload(field);for(const [type,value]of Object.entries(payload))event.clipboardData.setData(type,value);

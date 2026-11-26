@@ -457,3 +457,32 @@ test('dimensioned matrix words and saved structured dictionary entries create fi
  const prose=scratch();await type(prose,'We use a 3 by 3 matrix here');assert.equal(prose.getValue('plain-text'),'We use a 3 by 3 matrix here');assert(!prose.value.includes('\\begin{pmatrix}'));prose.parentElement.remove();
  const disabled=scratch();disabled.setNotationGroups(disabled.notationGroups.filter(g=>g!=='linear'));await type(disabled,'3x3 matrix ');assert(!disabled.value.includes('\\begin'));disabled.parentElement.remove();
 });
+
+test('bulk paste and completed dictation share contextual notation and one-step Undo',async()=>{
+ const f=scratch();installPageHistory(f);
+ insertClipboard(f,{'text/plain':'A note about sets.\nfor all x element of real numbers\nx is in complex numbers'});await settle();
+ assert.match(f.value,/A note about sets/);assert.match(f.value,/\\forall/);assert.match(f.value,/\\in/);assert.equal(f.errors.length,0);
+ const pasted=f.value;f.pageHistory.undo();assert.equal(f.getValue('plain-text'),'');f.pageHistory.redo();assert.equal(f.value,pasted);
+ f.selection={ranges:[[0,f.lastOffset]]};
+ f.shadowRoot.querySelector('.ML__keyboard-sink').dispatchEvent(new InputEvent('input',{inputType:'insertReplacementText',data:'x is in real numbers',bubbles:true}));await settle();
+ assert.match(f.value,/\\in/);assert(!f.value.includes('is in'));f.pageHistory.undo();assert.equal(f.value,pasted);
+ f.parentElement.remove();
+});
+test('ordinary keystrokes use native typing and incomplete composition is left alone',()=>{
+ const f=scratch(),sink=f.shadowRoot.querySelector('.ML__keyboard-sink');
+ sink.dispatchEvent(new InputEvent('input',{inputType:'insertText',data:'x',bubbles:true}));assert.equal(f.value,'x');
+ sink.dispatchEvent(new InputEvent('input',{inputType:'insertCompositionText',data:'example',isComposing:true,bubbles:true}));assert.equal(f.value,'x');
+ f.parentElement.remove();
+});
+
+test('dictation preserves prose, forced Text mode, and custom phrase settings',async()=>{
+ const f=scratch();
+ const dictate=text=>f.shadowRoot.querySelector('.ML__keyboard-sink').dispatchEvent(new InputEvent('input',{inputType:'insertText',data:text,bubbles:true}));
+ dictate('This is in my notes.');await settle();assert.match(f.value,/\\text\{This is in my notes\.\}/);assert(!f.value.includes('\\in'));
+ f.selection={ranges:[[0,f.lastOffset]]};f.pageInputMode='text';dictate('for all x');await settle();assert.match(f.value,/\\text\{for all x\}/);
+ f.selection={ranges:[[0,f.lastOffset]]};f.pageInputMode='auto';f.setCustomDictionaries([{id:'local',name:'Local',enabled:true,entries:[{text:'my tensor',latex:'⊗',context:true,enabled:true}]}]);dictate('x my tensor y');await settle();assert.match(f.value,/\\otimes|⊗/);assert.equal(f.errors.length,0);f.parentElement.remove();
+});
+test('pasted and dictated fragments use the operand before the insertion point',async()=>{
+ const f=exponentScratch('x');installPageHistory(f);insertClipboard(f,{'text/plain':' is in real numbers'});await settle();assert.match(f.value,/\\in/);assert(!f.value.includes('is in'));f.pageHistory.undo();assert.equal(f.value,'x');
+ f._mathfield.onInput(' squared plus two');await settle();assert.match(f.value,/x\^2/);assert.equal(f.errors.length,0);f.parentElement.remove();
+});
