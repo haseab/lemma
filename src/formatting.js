@@ -1,5 +1,22 @@
 export const FONTS={system:'sans-serif',serif:'roman',mono:'monospace'};
 export const FONT_SIZES=[{value:1,label:'10'},{value:2,label:'14'},{value:3,label:'16'},{value:4,label:'18'},{value:5,label:'20'},{value:6,label:'24'},{value:7,label:'29'},{value:8,label:'35'},{value:9,label:'42'},{value:10,label:'50'}];
+export function withEquationTypography(field,action,range){
+ const offsets=range||field.selection.ranges.flat(),start=Math.min(...offsets),end=Math.max(...offsets),last=field.lastOffset;
+ const previous=new Set(Array.from({length:end-start+1},(_,index)=>field._mathfield.model.at(start+index)));
+ const result=action();
+ // Conversion creates math atoms. They use the math font even if the source
+ // or insertion point uses a prose font. Keep text labels and existing atoms,
+ // along with color, size, weight, and explicit mathematical variants.
+ const finish=Math.min(field.lastOffset,end+field.lastOffset-last);
+ for(let offset=start+1;offset<=finish;offset++){
+  const atom=field._mathfield.model.at(offset);
+  if(previous.has(atom)||atom?.mode!=='math'||atom.hasChildren||atom.type==='first')continue;
+  if(atom.style?.fontFamily&&atom.style.fontFamily!=='none'||atom.style?.fontShape&&atom.style.fontShape!=='auto'){
+   field.applyStyle({fontFamily:'none',fontShape:'auto'},{range:[offset-1,offset],operation:'set',silenceNotifications:true});
+  }
+ }
+ return result;
+}
 export function applyFormatting(field,style,{toggle=false}={}){
  // Formatting intentionally preserves the user's selection and never changes
  // the text/math mode, so the same selection can be styled repeatedly.

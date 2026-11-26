@@ -48,6 +48,8 @@ Saved work stays in the original per-user application data directory so existing
 
 Use Command-F to find literal text and symbols. Command-G and Shift-Command-G move between results. The find bar supports case matching, replacing one match and replacing all matches. Search respects structural boundaries instead of treating a fraction or exponent as flat text; edit a complete formula through LaTeX source when needed.
 
+Select a part of an expression and press Command-K (Ctrl-K on other platforms) to replace it using words. Hover a term or highlighted selection and click **Edit**, or choose **Edit** from the right-click menu, to open the same popover. It previews notation as you type or paste. Enter applies the replacement as one undoable edit; Escape cancels. The page stays unchanged until you apply it.
+
 ## LaTeX and other editors
 
 - Open `.lemma`, earlier `.folio`, or `.tex`/`.latex` files through **File → Open**. Opening a document adds an editable page to the notebook; it does not overwrite the source file.

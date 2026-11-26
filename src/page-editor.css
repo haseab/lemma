@@ -1,3 +1,4 @@
+@import './selection-replacement.css';
 /* MathLive shades focused prose separately from an intentional selection.
    Both desktop and web keep prose unshaded in light and dark system themes. */
 #math-page{

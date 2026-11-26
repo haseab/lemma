@@ -1,4 +1,5 @@
 import {insertPageBreak} from './editing.js';
+import {withEquationTypography} from './formatting.js';
 
 // Rejection is the next editing action, not a timed shortcut. Moving the caret
 // or making another edit dismisses it; modifiers retain their native behavior.
@@ -19,9 +20,10 @@ export function installAutomaticConversion(field){
   if(field.pageInputMode==='auto'&&!field.isProseLine())pending={before:{latex:field.value,sources:field.readPhraseSources?.()||[],lines:field.readProseLines()},source,latex:field.value,selection:JSON.stringify(field.selection)};
  };
  field.trackAutomaticConversion=(source,action)=>{
-  if(rejecting||field.pageInputMode!=='auto'||field.isProseLine())return action();
+  if(rejecting||field.isProseLine())return action();
+  if(field.pageInputMode!=='auto')return withEquationTypography(field,action,[source.start,source.end]);
   const before={latex:field.value,sources:field.readPhraseSources?.()||[],lines:field.readProseLines()};
-  const result=action();
+  const result=withEquationTypography(field,action,[source.start,source.end]);
   if(field.value!==before.latex)pending={before,source,latex:field.value,selection:JSON.stringify(field.selection)};
   return result;
  };
