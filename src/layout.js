@@ -5,7 +5,9 @@ export function installPageWrapping(field){
  style.textContent=`
  .ML__container{display:block!important;min-width:0;width:100%}
  .ML__content{display:block!important;width:100%;min-width:0;overflow:visible!important;box-sizing:border-box}
- .ML__content > .ML__latex{display:block;width:100%;white-space:normal}
+ /* Keep positioned selection rectangles behind the wrapped line text. */
+ .ML__selection{z-index:0;pointer-events:none}
+ .ML__content > .ML__latex{display:block;width:100%;white-space:normal;position:relative;z-index:1}
  .ML__content > .ML__latex > .ML__base{display:block!important;width:100%;white-space:normal}
  .ML__content > .ML__latex > .ML__strut,.ML__content > .ML__latex > .ML__strut--bottom{display:none}
  .ML__content > .ML__latex > .ML__multiline_environment{display:block;width:100%}

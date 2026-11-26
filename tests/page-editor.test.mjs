@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {applyFormatting} from '../src/formatting.js';
 import {Window} from 'happy-dom';
 const browser=new Window({url:'http://localhost/'});
-for(const key of ['CSSStyleSheet','ShadowRoot','DocumentFragment','HTMLButtonElement','HTMLTextAreaElement','HTMLInputElement','PointerEvent','MouseEvent','Range','Selection','window','document','HTMLElement','customElements','navigator','MutationObserver','ResizeObserver','getComputedStyle','DOMRect','DOMParser','Event','CustomEvent','InputEvent','KeyboardEvent','Node','Element','requestAnimationFrame','cancelAnimationFrame','location','CSS','HTMLSlotElement','HTMLSpanElement','HTMLDivElement','HTMLStyleElement']) {
+for(const key of ['UIEvent','CSSStyleSheet','ShadowRoot','DocumentFragment','HTMLButtonElement','HTMLTextAreaElement','HTMLInputElement','PointerEvent','MouseEvent','Range','Selection','window','document','HTMLElement','customElements','navigator','MutationObserver','ResizeObserver','getComputedStyle','DOMRect','DOMParser','Event','CustomEvent','InputEvent','KeyboardEvent','Node','Element','requestAnimationFrame','cancelAnimationFrame','location','CSS','HTMLSlotElement','HTMLSpanElement','HTMLDivElement','HTMLStyleElement']) {
  if(browser[key]!==undefined)Object.defineProperty(globalThis,key,{configurable:true,value:typeof browser[key]==='function'&&['getComputedStyle','requestAnimationFrame','cancelAnimationFrame'].includes(key)?browser[key].bind(browser):browser[key]});
 }
 document.fonts={ready:Promise.resolve(),check:()=>true,load:async()=>[]};
@@ -115,7 +115,7 @@ test('Auto defers alphabetic shortcuts so ordinary word prefixes cannot turn int
  const f=scratch();assert(!Object.keys(f.inlineShortcuts).some(key=>/[A-Za-z]/.test(key)));
  await type(f,'inline math is useful');assert.equal(f.getValue('plain-text'),'inline math is useful');assert.equal(f.mode,'text');
  await type(f,'\n');await type(f,'sin ');assert.match(f.value,/\\sin/);assert.equal(f.mode,'math');
- await type(f,'`');assert(f.inlineShortcuts.in);await type(f,'`');assert(!f.inlineShortcuts.in);
+ await type(f,'`');assert(!f.inlineShortcuts.in);await type(f,'sin ');assert.match(f.value,/\\sin/);await type(f,'`');assert(!f.inlineShortcuts.in);
  f.parentElement.remove();
 });
 
@@ -153,7 +153,7 @@ test('ordinary deletion, selections, modifiers and prose retain native Backspace
   const original=f.value;assert.equal(backspace(f).defaultPrevented,false);assert.equal(f.value,original);f.parentElement.remove();
  }
  const f=exponentScratch('e^2+x');f.position=exponentBoundary(f);const original=f.value;
- assert.equal(backspace(f,{metaKey:true}).defaultPrevented,false);assert.equal(f.value,original);
+ assert.equal(backspace(f,{altKey:true}).defaultPrevented,false);assert.equal(f.value,original);
  f.selection={ranges:[[0,1]]};assert.equal(backspace(f).defaultPrevented,false);assert.equal(f.value,original);f.parentElement.remove();
 });
 
@@ -327,12 +327,12 @@ test('styled operators preserve color through prose conversion and forced Text m
  f.pageInputMode='text';f.mode='text';await type(f,' End');assert(!f.value.includes('\\operatorname'));f.parentElement.remove();
 });
 
-test('natural-language quantifiers become symbols and revert when the run becomes a sentence',async()=>{
+test('natural-language quantifiers keep notation until explicitly rejected',async()=>{
  const f=scratch();await type(f,'for all');assert.match(f.value,/\\forall/);assert.equal(f.mode,'math');
  await type(f,' x');assert.match(f.value,/\\forall/);assert.equal(f.mode,'math');
  f.parentElement.remove();
- const g=scratch();await type(g,'for all practical purposes');assert.equal(g.mode,'text');assert.equal(g.getValue('plain-text'),'for all practical purposes');assert(!g.value.includes('\\forall'));g.parentElement.remove();
- const h=scratch();await type(h,'there exists');assert.match(h.value,/\\exists/);await type(h,' a reason');assert.equal(h.getValue('plain-text'),'there exists a reason');assert.equal(h.mode,'text');h.parentElement.remove();
+ const g=scratch();await type(g,'for all practical purposes');assert.match(g.value,/\\forall/);assert(backspace(g).defaultPrevented);await type(g,'s');assert.equal(g.mode,'text');assert.equal(g.getValue('plain-text'),'for all practical purposes');assert(!g.value.includes('\\forall'));g.parentElement.remove();
+ const h=scratch();await type(h,'there exists');assert.match(h.value,/\\exists/);await type(h,' a reason');assert.match(h.value,/\\exists/);assert(backspace(h).defaultPrevented);await type(h,'n');assert.equal(h.getValue('plain-text'),'there exists a reason');assert.equal(h.mode,'text');h.parentElement.remove();
 });
 test('every automatic phrase parses, inserts cleanly, and can turn back into prose',async()=>{
  const {NOTATION_GROUPS}=await import('../src/math-words.js');
@@ -340,7 +340,7 @@ test('every automatic phrase parses, inserts cleanly, and can turn back into pro
   const f=scratch();await type(f,(phrase.context?'x ':'')+phrase.text+(phrase.text.includes(' ')?'':' '));
   assert.equal(f.errors.length,0,phrase.text);assert.equal(f.mode,'math',phrase.text);
   assert(f.value.includes(phrase.latex),phrase.text+' should become '+phrase.latex+', got '+f.value);
-  await type(f,' useful explanation');assert.equal(f.mode,'text',phrase.text);assert.match(f.getValue('plain-text'),new RegExp(phrase.text),phrase.text);assert.equal(f.errors.length,0,phrase.text);
+  await type(f,' useful explanation');if(['\\forall','\\exists','\\nexists'].includes(phrase.latex)){assert(backspace(f).defaultPrevented,phrase.text);await type(f,'n');}assert.equal(f.mode,'text',phrase.text);assert.match(f.getValue('plain-text'),new RegExp(phrase.text),phrase.text);assert.equal(f.errors.length,0,phrase.text);
   f.parentElement.remove();
  }
 });
@@ -352,13 +352,13 @@ test('disabling a notation group prevents its recognition but leaves explicit La
  f.parentElement.remove();
 });
 
-test('phrase conversion survives Undo/Redo, deletion, and saved history without touching ordinary sentences',async()=>{
+test('quantifier rejection survives Undo/Redo and saved history without touching ordinary sentences',async()=>{
  const f=scratch();installPageHistory(f);await type(f,'for all');f.pageHistory.flush();const symbol=f.value;
- await type(f,' people');f.pageHistory.flush();assert.equal(f.getValue('plain-text'),'for all people');
+ await type(f,' people');assert.match(f.value,/\\forall/);assert(backspace(f).defaultPrevented);await type(f,'e');f.pageHistory.flush();const literal=f.value;
+ assert.equal(f.getValue('plain-text'),'for all people');assert(f.isProseLine());
  while(f.value!==symbol&&f.pageHistory.canUndo)f.pageHistory.undo();assert.equal(f.value,symbol);
- while(f.getValue('plain-text')!=='for all people'&&f.pageHistory.canRedo)f.pageHistory.redo();assert.equal(f.getValue('plain-text'),'for all people');
- for(let i=0;i<6;i++)await erase(f);f.pageHistory.flush();assert.match(f.value,/\\forall/);assert.equal(f.mode,'math');
- const history=f.pageHistory.serialize(),container=f.parentElement,latex=f.value;f.pageHistory.dispose();const reopened=createPageMathfield(container,latex,()=>{});installPageHistory(reopened,history);assert(reopened.pageHistory.canUndo);assert.match(reopened.value,/\\forall/);reopened.pageHistory.dispose();container.remove();
+ while(f.value!==literal&&f.pageHistory.canRedo)f.pageHistory.redo();assert.equal(f.value,literal);assert(f.isProseLine());
+ const history=f.pageHistory.serialize(),container=f.parentElement,latex=f.value;f.pageHistory.dispose();const reopened=createPageMathfield(container,latex,()=>{});installPageHistory(reopened,history);assert(reopened.pageHistory.canUndo);assert(reopened.isProseLine());assert(!reopened.value.includes('\\forall'));reopened.pageHistory.dispose();container.remove();
  const prose=scratch();await type(prose,'A useful explanation for all readers');assert.equal(prose.getValue('plain-text'),'A useful explanation for all readers');assert(!prose.value.includes('\\forall'));prose.parentElement.remove();
 });
 test('disabling groups preserves existing symbols during further mathematical typing',async()=>{
@@ -491,4 +491,492 @@ test('comma-separated quantified predicates convert through paste and dictation 
  insertClipboard(f,{'text/plain':'for all T, u is less than or equal to seven'});await settle();assert.match(f.value,/\\forall/);assert.match(f.value,/\\le/);assert.equal(f.errors.length,0);
  const pasted=f.value;f.pageHistory.undo();assert.equal(f.getValue('plain-text'),'');f.pageHistory.redo();assert.equal(f.value,pasted);
  f.selection={ranges:[[0,f.lastOffset]]};f._mathfield.onInput('there exists q, q is greater than three.');await settle();assert.match(f.value,/\\exists/);assert.match(f.value,/q>3/);assert.equal(f.errors.length,0);f.pageHistory.undo();assert.equal(f.value,pasted);f.parentElement.remove();
+});
+test('completed quantified clauses are recognized after continued dictation and normal typing',async()=>{
+ const text='for all e, e is less than or equal to 2';
+ const pasted=scratch();insertClipboard(pasted,{'text/plain':text});await settle();const expected=pasted.value;assert.match(expected,/\\forall/);assert.match(expected,/\\le/);pasted.parentElement.remove();
+ const continued=scratch();installPageHistory(continued);insertClipboard(continued,{'text/plain':'for all e, e is less than or equal to '});await settle();const incomplete=continued.value;
+ continued._mathfield.onInput('2');await settle();assert.equal(continued.value,expected);continued.pageHistory.undo();assert.equal(continued.value,incomplete);continued.pageHistory.redo();assert.equal(continued.value,expected);continued.parentElement.remove();
+ const spoken=scratch();spoken._mathfield.onInput('for all e, e is less than or equal to ');await settle();spoken._mathfield.onInput('two');await settle();assert.equal(spoken.value,expected);spoken.parentElement.remove();
+ const typed=scratch();await type(typed,text);await settle();assert.equal(typed.value,expected);assert.equal(typed.errors.length,0);typed.parentElement.remove();
+});
+test('removing the final operand preserves quantified notation and supports replacement and persistent Undo',async()=>{
+ const f=scratch();installPageHistory(f);insertClipboard(f,{'text/plain':'for all e, e is less than or equal to '});await settle();f._mathfield.onInput('2');await settle();const complete=f.value;
+ await erase(f);await settle();const emptyOperand=f.value;assert.match(emptyOperand,/\\forall/);assert.match(emptyOperand,/\\le/);assert(!emptyOperand.includes('\\text'));assert.equal(f.mode,'math');assert.equal(f.selectionIsCollapsed,true);assert.equal(f.position,f.lastOffset);
+ f.pageHistory.undo();assert.equal(f.value,complete);f.pageHistory.redo();assert.equal(f.value,emptyOperand);
+ await type(f,'3');await settle();assert.match(f.value,/\\le3/);assert.equal(f.errors.length,0);
+ const saved=f.pageHistory.serialize(),latex=f.value;const reopened=exponentScratch(latex);installPageHistory(reopened,saved);await erase(reopened);await settle();assert.match(reopened.value,/\\forall/);assert.match(reopened.value,/\\le/);assert(!reopened.value.includes('\\text'));reopened.parentElement.remove();f.parentElement.remove();
+});
+test('rejecting a quantified statement restores readable word boundaries',async()=>{
+ const f=scratch();insertClipboard(f,{'text/plain':'for all e, e is less than or equal to 2'});await settle();await type(f,' applies here');await settle();assert.match(f.value,/\\forall/);assert(backspace(f).defaultPrevented);await type(f,'e');
+ assert.equal(f.getValue('plain-text'),'for all e, e is less than or equal to 2 applies here');assert.equal(f.mode,'text');f.parentElement.remove();
+});
+
+test('unfinished quantified comparisons render immediately and remain editable',async()=>{
+ const input='for all e, e is less than or equal to';
+ for(const method of ['paste','dictation','typing']){
+  const f=scratch();installPageHistory(f);
+  if(method==='paste')insertClipboard(f,{'text/plain':input});
+  else if(method==='dictation')f._mathfield.onInput(input);
+  else await type(f,input);
+  await settle();assert.match(f.value,/\\forall/);assert.match(f.value,/\\le/);assert(!f.value.includes('\\text'),method);assert.equal(f.errors.length,0);
+  const unfinished=f.value;await type(f,'2');await settle();assert.match(f.value,/\\le2/);await erase(f);await settle();assert.equal(f.value,unfinished,method);
+  f.parentElement.remove();
+ }
+ const prose=scratch(),source=input+' the limit of what we know';insertClipboard(prose,{'text/plain':source});await settle();assert.match(prose.value,/\\forall/);assert.match(prose.value,/\\le/);assert(backspace(prose).defaultPrevented);await type(prose,'w');assert.equal(prose.getValue('plain-text'),source);prose.parentElement.remove();
+});
+
+test('value quantifier wording stays math until rejected across input methods',async()=>{
+ for(const method of ['typing','paste','dictation']){
+  const f=scratch();installPageHistory(f);const input='for all values V';
+  if(method==='typing')await type(f,input);
+  else if(method==='paste')insertClipboard(f,{'text/plain':input});
+  else f._mathfield.onInput(input);
+  await settle();assert.match(f.value,/\\forall/);assert.match(f.value,/V/);assert(!f.value.includes('\\text'),method+': '+f.value);assert.equal(f.errors.length,0);
+  const notation=f.value;await type(f,' we measured');await settle();assert.match(f.value,/\\forall/);assert(backspace(f).defaultPrevented);await type(f,'d');assert.equal(f.mode,'text');assert.match(f.getValue('plain-text'),/for all.*V we measured/);
+  f.pageHistory.undo();f.pageHistory.redo();assert.equal(f.mode,'text');f.pageHistory.dispose();f.parentElement.remove();
+ }
+ const prose=scratch();await type(prose,'for all values we measured');assert.match(prose.value,/\\forall/);assert(backspace(prose).defaultPrevented);await type(prose,'d');assert.equal(prose.getValue('plain-text'),'for all values we measured');assert(!prose.value.includes('\\forall'));prose.parentElement.remove();
+});
+
+test('qualified quantifiers share notation for typing, paste, dictation and split input without losing the noun',async()=>{
+ for(const input of ['for all chickens C','for all objects X','for all vectors V']){
+  let expected;
+  for(const method of ['typing','paste','dictation','split']){
+   const f=scratch();installPageHistory(f);
+   if(method==='typing')await type(f,input);
+   else if(method==='paste')insertClipboard(f,{'text/plain':input});
+   else if(method==='dictation')f._mathfield.onInput(input);
+   else{f._mathfield.onInput(input.slice(0,-1));await settle();await type(f,input.slice(-1));}
+   await settle();assert.match(f.value,/\\forall/);assert.match(f.value,new RegExp(input.split(' ')[2]));assert.equal(f.mode,'math',method+': '+f.value);assert.equal(f.errors.length,0);
+   if(expected===undefined)expected=f.value;else assert.equal(f.value,expected,method);
+   await type(f,' we observed');await settle();assert.match(f.value,/\\forall/);assert(backspace(f).defaultPrevented);await type(f,'d');assert.equal(f.getValue('plain-text'),input+' we observed');
+   f.pageHistory.dispose();f.parentElement.remove();
+  }
+ }
+ for(const input of ['for all chickens we observed','for all practical purposes','A note for all chickens C']){
+  const f=scratch();await type(f,input);if(input.startsWith('for all')){assert.match(f.value,/\\forall/);assert(backspace(f).defaultPrevented);await type(f,input.at(-1));}assert.equal(f.getValue('plain-text'),input);f.pageHistory?.dispose();f.parentElement.remove();
+ }
+});
+
+test('immediate Backspace deletes the last source character, rejects conversion and keeps the line prose',async()=>{
+ for(const method of ['typing','paste','dictation']){
+  const f=scratch();installPageHistory(f);const source=method==='typing'?'for all':'for all chickens C';
+  if(method==='typing')await type(f,source);
+  else if(method==='paste')insertClipboard(f,{'text/plain':source});
+  else f._mathfield.onInput(source);
+  await settle();assert.match(f.value,/\\forall/);const converted=f.value;
+  const event=backspace(f);assert(event.defaultPrevented,method);await settle();
+  assert.equal(f.getValue('plain-text'),source.slice(0,-1),method);assert.equal(f.mode,'text');assert(f.isProseLine());
+  const rejected=f.value;f.pageHistory.undo();assert.equal(f.value,converted);assert(!f.isProseLine());f.pageHistory.redo();assert.equal(f.value,rejected);assert(f.isProseLine());
+  await type(f,'l for all x square root');await settle();assert(!f.value.includes('\\forall'));assert(!f.value.includes('\\sqrt'));assert.equal(f.mode,'text');
+  insertClipboard(f,{'text/plain':' x is in real numbers'});await settle();assert(!f.value.includes('\\in'));assert.equal(f.errors.length,0);
+  const oldLineEnd=f.position;await type(f,'\nfor all');await settle();assert.match(f.value,/\\forall/);assert(!f.isProseLine());
+  f.position=oldLineEnd;assert(f.isProseLine());await type(f,' more');assert.equal(f.mode,'text');
+  f.position=f.lastOffset;await type(f,' x');assert.equal(f.mode,'math');assert(!f.isProseLine());f.pageHistory.dispose();f.parentElement.remove();
+ }
+});
+test('rejection preserves surrounding content, formatting and the per-line preference after reopening',async()=>{
+ const f=scratch();installPageHistory(f);await type(f,'An existing note\n');applyFormatting(f,{color:'#315b42'});await type(f,'for all');await settle();
+ assert(backspace(f).defaultPrevented);await settle();assert.match(f.value,/An existing note/);assert.match(f.value,/315b42/);assert(f.isProseLine());
+ const saved=f.pageHistory.serialize(),latex=f.value;const reopened=exponentScratch(latex);installPageHistory(reopened,saved);assert(reopened.isProseLine());await type(reopened,'l');assert(!reopened.value.includes('\\forall'));
+ await type(reopened,'\nfor all');assert.match(reopened.value,/\\forall/);assert(!reopened.isProseLine());assert.equal(reopened.errors.length,0);reopened.pageHistory.dispose();f.pageHistory.dispose();reopened.parentElement.remove();f.parentElement.remove();
+});
+test('ordinary math, caret movement and explicit Math mode keep normal Backspace behavior',async()=>{
+ const f=scratch();await type(f,'x+y');assert(!backspace(f).defaultPrevented);f.executeCommand('deleteBackward');assert.match(f.value,/x\+/);assert(!f.isProseLine());
+ const g=scratch();await type(g,'for all');g.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowLeft',bubbles:true,cancelable:true}));assert(!backspace(g).defaultPrevented);assert(!g.isProseLine());
+ const h=scratch();h.pageInputMode='math';h.mode='math';h._mathfield.onInput('for all x');await settle();assert(!backspace(h).defaultPrevented);assert(!h.isProseLine());f.parentElement.remove();g.parentElement.remove();h.parentElement.remove();
+});
+
+test('fillable templates also reject to their source minus one character',async()=>{
+ for(const source of ['square root','fraction','3x3 matrix']){
+  const f=scratch();installPageHistory(f);await type(f,source+' ');await settle();assert.equal(f.errors.length,0);
+  assert(backspace(f).defaultPrevented,source);await settle();assert.equal(f.getValue('plain-text'),source.slice(0,-1));assert(f.isProseLine());assert.equal(f.mode,'text');f.pageHistory.dispose();f.parentElement.remove();
+ }
+});
+test('rejecting pasted notation preserves earlier structured math and respects read-only state',async()=>{
+ const f=exponentScratch('\\frac{1}{2}');installPageHistory(f);insertClipboard(f,{'text/plain':'for all chickens C'});await settle();const converted=f.value;
+ f.readOnly=true;assert(!backspace(f).defaultPrevented);assert.equal(f.value,converted);f.readOnly=false;
+ insertClipboard(f,{'text/plain':'for all x'});await settle();assert(backspace(f).defaultPrevented);await settle();assert.match(f.value,/\\frac/);assert.match(f.value,/for all /);assert.equal(f.errors.length,0);f.pageHistory.dispose();f.parentElement.remove();
+});
+
+test('quantified words stay notation until Backspace rejection and completing the word does not convert again',async()=>{
+ for(const method of ['typing','paste','dictation','split']){
+  const f=scratch();installPageHistory(f);const source='for all people';
+  if(method==='typing')await type(f,source);
+  else if(method==='paste')insertClipboard(f,{'text/plain':source});
+  else if(method==='dictation')f._mathfield.onInput(source);
+  else{f._mathfield.onInput('for all ');await settle();await type(f,'people');}
+  await settle();assert.match(f.value,/\\forall/,method);assert.match(f.value,/people/,method);assert.equal(f.mode,'math',method+': '+f.value);
+  const converted=f.value;assert(backspace(f).defaultPrevented,method);await settle();assert.equal(f.getValue('plain-text'),'for all peopl');assert(f.isProseLine());
+  await type(f,'e');await settle();assert.equal(f.getValue('plain-text'),source);assert(!f.value.includes('\\forall'));assert.equal(f.mode,'text');
+  const literal=f.value;f.pageHistory.undo();f.pageHistory.redo();assert.equal(f.value,literal);assert(f.isProseLine());
+  await type(f,' and for all objects');assert(!f.value.includes('\\forall'));
+  await type(f,'\nfor all people');assert.match(f.value,/\\forall/);assert(!f.isProseLine());assert.equal(f.errors.length,0);f.pageHistory.dispose();f.parentElement.remove();
+ }
+});
+
+test('recognized relations convert among quantified words and rejection preserves their exact wording',async()=>{
+ for(const [relation,pattern] of [['less than',/</],['greater than',/>/],['less than or equal to',/\\le/],['at most',/\\le/],['element of',/\\in/]]){
+  let expected;
+  for(const method of ['typing','paste','dictation','split']){
+   const source=`for all people ${relation} 2`,f=scratch();installPageHistory(f);
+   if(method==='typing')await type(f,source);
+   else if(method==='paste')insertClipboard(f,{'text/plain':source});
+   else if(method==='dictation')f._mathfield.onInput(source);
+   else{f._mathfield.onInput('for all people ');await settle();await type(f,relation+' 2');}
+   await settle();assert.match(f.value,/\\forall/,source);assert.match(f.value,pattern,source);assert.match(f.value,/people/);assert.equal(f.mode,'math');assert.equal(f.errors.length,0);
+   if(expected===undefined)expected=f.value;else assert.equal(f.value,expected,method+': '+source);
+   assert(backspace(f).defaultPrevented);await settle();assert.equal(f.getValue('plain-text'),source.slice(0,-1),method+': '+source);
+   await type(f,'2');assert.equal(f.getValue('plain-text'),source);assert(!f.value.includes('\\forall'));assert(f.isProseLine());f.pageHistory.dispose();f.parentElement.remove();
+  }
+ }
+});
+
+test('a closing fence supplies its missing opening fence for the current expression',async()=>{
+ for(const [close,left,right] of [[')','(',')'],[']','\\lbrack','\\rbrack'],['}','\\lbrace','\\rbrace']]){
+  const f=scratch();installPageHistory(f);await type(f,'x+1');await settle();const before=f.value;
+  await type(f,close);await settle();assert.equal(f.errors.length,0,close);
+  const fences=Array.from({length:f.lastOffset+1},(_,n)=>f._mathfield.model.at(n)).filter(a=>a?.type==='leftright');
+  assert.equal(fences.length,1,close+': '+f.value);assert.equal(fences[0].leftDelim,left);assert.equal(fences[0].rightDelim,right);assert.match(f.value,/x\+1/);assert.equal(f.position,f.lastOffset);
+  const paired=f.value;f.pageHistory.undo();assert.equal(f.value,before);f.pageHistory.redo();assert.equal(f.value,paired);
+  const saved=f.pageHistory.serialize(),reopened=exponentScratch(paired);installPageHistory(reopened,saved);reopened.pageHistory.undo();assert.equal(reopened.value,before);reopened.pageHistory.dispose();f.pageHistory.dispose();reopened.parentElement.remove();f.parentElement.remove();
+ }
+});
+test('missing opening fences stay within an equation side, row, or fraction branch and retain styles',async()=>{
+ const f=exponentScratch('a=\\frac{1}{2}+x^2');installPageHistory(f);f.selection={ranges:[[0,f.lastOffset]]};applyFormatting(f,{color:'#315b42'});f.position=-1;const before=f.value;await type(f,')');await settle();assert.match(f.value,/a=/);assert.match(f.value,/\\left\(/);assert.match(f.value,/\\frac/);assert.match(f.value,/x\^2/);assert.match(f.value,/315b42/);assert.equal(f.errors.length,0);f.pageHistory.undo();assert.equal(f.value,before);f.pageHistory.dispose();f.parentElement.remove();
+ const g=exponentScratch('\\frac{x+1}{y}');g.position=Array.from({length:g.lastOffset+1},(_,n)=>n).find(n=>g._mathfield.model.at(n)?.value==='1');await type(g,')');assert.match(g.value,/\\frac\{\\left\(x\+1\\right\)\}\{y\}/);assert.equal(g.errors.length,0);g.parentElement.remove();
+ const empty=exponentScratch('a=');await type(empty,')');assert.match(empty.value,/a=\\left\(/);assert.equal(empty.errors.length,0);empty.parentElement.remove();
+ const h=scratch();await type(h,'a=2\nx+1)');assert.match(h.value,/a=2/);assert.match(h.value,/\\left\(x\+1\\right\)/);assert.equal(h.errors.length,0);h.parentElement.remove();
+});
+test('existing soft fences close normally and prose brackets remain literal',async()=>{
+ const f=scratch();const open=new KeyboardEvent('keydown',{key:'(',code:'Digit9',shiftKey:true,cancelable:true});f._mathfield.onKeystroke(open);await type(f,'x+1');
+ const close=new KeyboardEvent('keydown',{key:')',code:'Digit0',shiftKey:true,bubbles:true,cancelable:true});f.dispatchEvent(close);if(!close.defaultPrevented)f._mathfield.onKeystroke(close);await settle();
+ assert.equal((f.value.match(/\\left/g)||[]).length,1);assert(!f.value.includes('\\right?'));assert.equal(f.position,f.lastOffset);assert.equal(f.errors.length,0);f.parentElement.remove();
+ for(const locked of [false,true]){const g=scratch();if(locked)g.keepLineProse();else{g.pageInputMode='text';g.mode='text';}await type(g,'a note)');assert.equal(g.getValue('plain-text'),'a note)');assert(!g.value.includes('\\left'));g.parentElement.remove();}
+});
+
+// Exercise the shadow keyboard sink and text-service boundary, rather than
+// relying only on host keydown plus executeCommand('insert').
+test('closing brackets pair through the real keyboard sink and direct text input',async()=>{
+ for(const direct of [false,true])for(const close of [')',']','}']){
+  const f=scratch();installPageHistory(f);
+  for(const key of 'x+1'+close){
+   if(direct)f._mathfield.onInput(key);
+   else{
+    const event=new KeyboardEvent('keydown',{key,code:key===')'?'Digit0':key===']'||key==='}'?'BracketRight':key==='+'?'Equal':key==='1'?'Digit1':'KeyX',shiftKey:[')','}','+'].includes(key),bubbles:true,composed:true,cancelable:true});
+    f.shadowRoot.querySelector('[contenteditable]').dispatchEvent(event);
+    if(!event.defaultPrevented)f._mathfield.onInput(key);
+   }
+   await new Promise(r=>setTimeout(r,1));
+  }
+  await settle();
+  assert.match(f.value,/\\left/);assert.match(f.value,/x\+1/);assert.equal(f.position,f.lastOffset);assert.equal(f.errors.length,0);
+  assert(f.shadowRoot.querySelector('.ML__open.lemma-ghost-open'),'supplied opening is visibly anticipated');
+  assert(!f.shadowRoot.querySelector('.ML__close.lemma-ghost-open'),'typed closing stays solid');
+  assert(!f.value.includes('lemma-ghost'),'visual anticipation never enters exported math');
+  f.pageHistory.undo();assert.equal(f.value,'x+1');f.pageHistory.redo();assert.match(f.value,/\\left/);
+  f.pageHistory.dispose();f.parentElement.remove();
+ }
+});
+
+test('continuing after an inferred opening confirms it without adding an undo step',async()=>{
+ for(const direct of [false,true])for(const close of [')',']','}']){
+  const f=scratch();installPageHistory(f);await type(f,'x+1');
+  if(direct)f._mathfield.onInput(close);else await type(f,close);
+  await settle();const grouped=f.value;
+  assert(f.shadowRoot.querySelector('.lemma-ghost-open'));
+  // Moving the caret alone does not accept or change the bracket.
+  f.position=0;f.position=-1;await settle();
+  assert(f.shadowRoot.querySelector('.lemma-ghost-open'));
+  if(direct)f._mathfield.onInput('+');else await type(f,'+');
+  await settle();
+  assert(!f.shadowRoot.querySelector('.lemma-ghost-open'),'following edit confirms opening');
+  assert(f.value.endsWith('+'));assert.equal(f.position,f.lastOffset);assert.equal(f.errors.length,0);
+  f.pageHistory.undo();assert.equal(f.value,grouped,'confirmation has no extra undo step');
+  f.pageHistory.undo();assert.equal(f.value,'x+1');f.pageHistory.redo();f.pageHistory.redo();
+  assert(f.value.endsWith('+'));assert(!f.shadowRoot.querySelector('.lemma-ghost-open'));
+  f.pageHistory.dispose();f.parentElement.remove();
+ }
+ const f=scratch();await type(f,'x+1)');await settle();
+ insertClipboard(f,{'text/plain':'plus 2'});await settle();
+ assert(!f.shadowRoot.querySelector('.lemma-ghost-open'),'pasting also confirms opening');
+ assert.equal(f.errors.length,0);f.parentElement.remove();
+});
+
+test('Math mode keeps spaces and never expands a shortcut suffix inside a word',async()=>{
+ for(const input of ['keyboard','text']){
+  const f=scratch();f.pageInputMode='math';f.mode='math';f.resetProseInput();installPageHistory(f);
+  const enter=async key=>{
+   if(input==='text')f._mathfield.onInput(key);
+   else{
+    const event=new KeyboardEvent('keydown',{key,code:key===' '?'Space':'Key'+key.toUpperCase(),bubbles:true,composed:true,cancelable:true});
+    f.shadowRoot.querySelector('[contenteditable]').dispatchEvent(event);
+    if(!event.defaultPrevented)f._mathfield.onInput(key);
+   }
+   await new Promise(r=>setTimeout(r,1));
+  };
+  for(const key of 'for  ')await enter(key);await settle();
+  assert.equal(f.value,'for\\ \\ ',input);assert(!/\\(?:lor|vee)/.test(f.value));assert.equal(f.mode,'math');
+  for(const key of 'x')await enter(key);await settle();
+  assert.equal(f.value,'for\\ \\ x');assert.equal(f.errors.length,0);
+  f.pageHistory.undo();assert.equal(f.value,'for\\ \\ ');f.pageHistory.redo();assert.equal(f.value,'for\\ \\ x');
+  const restored=exponentScratch(f.value);assert.equal(restored.value,f.value);restored.parentElement.remove();
+  f.pageHistory.dispose();f.parentElement.remove();
+ }
+ const f=scratch();f.pageInputMode='math';f.mode='math';f.resetProseInput();
+ const keyboard=async text=>{for(const key of text){const event=new KeyboardEvent('keydown',{key,code:key===' '?'Space':'Key'+key.toUpperCase(),bubbles:true,composed:true,cancelable:true});f.shadowRoot.querySelector('[contenteditable]').dispatchEvent(event);if(!event.defaultPrevented)f._mathfield.onInput(key);await new Promise(r=>setTimeout(r,1));}};
+ await keyboard('for ');assert(!/\\(?:lor|vee)/.test(f.value));await keyboard('all ');assert.match(f.value,/\\forall/);assert.equal(f.mode,'math');
+ await keyboard('x or ');assert.match(f.value,/\\(?:lor|vee)/);assert.equal(f.mode,'math');f.parentElement.remove();
+});
+
+test('quantified labels allow immediate relation conversion in Auto and Math across input methods',async()=>{
+ for(const mode of ['auto','math'])for(const method of ['keyboard','text','paste']){
+  const f=scratch();f.pageInputMode=mode;f.resetProseInput();f.mode='math';installPageHistory(f);
+  const enter=async text=>{
+   if(method==='paste'){insertClipboard(f,{'text/plain':text});await settle();return;}
+   for(const key of text){
+    if(method==='text')f._mathfield.onInput(key);
+    else{
+     const event=new KeyboardEvent('keydown',{key,code:key===' '?'Space':/^[A-Za-z]$/.test(key)?'Key'+key.toUpperCase():key===','?'Comma':'Digit2',shiftKey:/^[A-Z]$/.test(key),bubbles:true,composed:true,cancelable:true});
+     f.shadowRoot.querySelector('[contenteditable]').dispatchEvent(event);
+     if(!event.defaultPrevented)f._mathfield.onInput(key);
+    }
+    await new Promise(r=>setTimeout(r,1));
+   }
+   await settle();
+  };
+  await enter('for all objects C, c is less than');
+  assert.match(f.value,/\\forall/,mode+': '+method);assert.match(f.value,/</,mode+': '+method);assert(!f.value.includes('is less than'));assert.equal(f.mode,'math');assert.equal(f.errors.length,0);
+  const compared=f.value;f.pageHistory.flush();
+  await enter(' or equal to 2');
+  assert.match(f.value,/\\le/,mode+': '+method);assert.match(f.value,/2/);assert.equal(f.mode,'math');assert.equal(f.errors.length,0);
+  const saved=f.value;const restored=exponentScratch(saved);assert.equal(restored.value,saved);restored.parentElement.remove();
+  f.pageHistory.undo();assert.notEqual(f.value,saved);f.pageHistory.redo();assert.equal(f.value,saved);assert(compared.includes('<'));
+  f.pageHistory.dispose();f.parentElement.remove();
+ }
+});
+
+test('triple-click selects the clicked page line, including its nested math, rather than the document',async()=>{
+ const {pageLineRange}=await import('../src/page-lines.js');
+ const f=exponentScratch('\\displaylines{a=1\\\\x+\\frac{p}{q}\\\\b=2}');
+ const model=f._mathfield.model,position=Array.from({length:f.lastOffset+1},(_,n)=>n).find(n=>model.at(n)?.value==='q');
+ const range=pageLineRange(f,position);assert(range.start>0);assert(range.end<f.lastOffset);
+ const previous=f.value;f.position=0;f.getOffsetFromPoint=()=>position;
+ const event=new PointerEvent('pointerdown',{detail:3,button:0,clientX:40,clientY:60,bubbles:true,composed:true,cancelable:true});
+ f.dispatchEvent(event);assert(event.defaultPrevented);assert.deepEqual(f.selection.ranges,[[range.start,range.end]]);
+ assert.equal(f.getValue(f.selection,'latex'),'x+\\frac{p}{q}');assert.equal(f.value,previous);
+ f.parentElement.remove();
+});
+test('Command+Delete clears only the current line and is a single persistent undoable edit',async()=>{
+ const {pageLineRange}=await import('../src/page-lines.js');
+ for(const mode of ['auto','math','text']){
+  const f=exponentScratch('\\displaylines{a=1\\\\\\text{A useful note}\\\\b=2}');f.pageInputMode=mode;f.mode=mode==='text'?'text':'math';installPageHistory(f);
+  const position=Array.from({length:f.lastOffset+1},(_,n)=>n).find(n=>f._mathfield.model.at(n)?.value==='u');
+  const range=pageLineRange(f,position);f.position=range.end;const before=f.value;
+  const event=backspace(f,{metaKey:true});assert(event.defaultPrevented);await settle();
+  assert.match(f.value,/a=1/);assert.match(f.value,/b=2/);assert(!f.value.includes('useful'));assert.equal(f.position,range.start);assert.equal(f.errors.length,0);
+  const after=f.value;f.pageHistory.undo();assert.equal(f.value,before);f.pageHistory.redo();assert.equal(f.value,after);
+  const restored=exponentScratch(after);installPageHistory(restored,f.pageHistory.serialize());restored.pageHistory.undo();assert.equal(restored.value,before);
+  restored.pageHistory.dispose();restored.parentElement.remove();f.pageHistory.dispose();f.parentElement.remove();
+ }
+});
+test('line deletion respects the caret, selections, row edges and read-only fields',async()=>{
+ const {pageLineRange}=await import('../src/page-lines.js');
+ const f=exponentScratch('\\displaylines{a=1\\\\x+y+z\\\\b=2}');f.pageInputMode='math';f.resetProseInput();
+ const pos=Array.from({length:f.lastOffset+1},(_,n)=>n).find(n=>f._mathfield.model.at(n)?.value==='y');
+ const range=pageLineRange(f,pos);f.position=range.start;const before=f.value;backspace(f,{metaKey:true});assert.equal(f.value,before);
+ f.position=pos;backspace(f,{metaKey:true});assert.match(f.value,/\+z/);assert(!f.value.includes('x+y'));assert.match(f.value,/a=1/);assert.match(f.value,/b=2/);
+ const event=new KeyboardEvent('keydown',{key:'Delete',metaKey:true,bubbles:true,cancelable:true});f.dispatchEvent(event);assert(event.defaultPrevented);assert(!f.value.includes('z'));assert.equal(f.errors.length,0);
+ f.readOnly=true;assert(!backspace(f,{metaKey:true}).defaultPrevented);f.parentElement.remove();
+ const g=exponentScratch('abc');g.selection={ranges:[[1,2]]};backspace(g,{metaKey:true});assert.equal(g.value,'ac');g.parentElement.remove();
+});
+
+test('Command+Delete inside a fraction uses the page line and preserves neighbouring rows',async()=>{
+ const f=exponentScratch('\\displaylines{a=1\\\\x+\\frac{p}{q}+z\\\\b=2}');f.pageInputMode='math';f.resetProseInput();installPageHistory(f);
+ const pos=Array.from({length:f.lastOffset+1},(_,n)=>n).find(n=>f._mathfield.model.at(n)?.value==='p');f.position=pos;const before=f.value;
+ assert(backspace(f,{metaKey:true}).defaultPrevented);await settle();
+ assert.match(f.value,/a=1/);assert.match(f.value,/b=2/);assert.match(f.value,/z/);assert(!f.value.includes('x+'));assert(!f.value.includes('\\frac'));assert.equal(f.errors.length,0);
+ f.pageHistory.undo();assert.equal(f.value,before);f.pageHistory.dispose();f.parentElement.remove();
+});
+
+test('browser triple-click counts on mouse events select one line even when pointer detail is zero',async()=>{
+ const {pageLineRange}=await import('../src/page-lines.js');
+ const f=exponentScratch('\\displaylines{a=1\\\\x+2\\\\b=3}');const model=f._mathfield.model;
+ const position=Array.from({length:f.lastOffset+1},(_,n)=>n).find(n=>model.at(n)?.value==='x');
+ const range=pageLineRange(f,position);f.getOffsetFromPoint=()=>position;
+ const target=f.shadowRoot.querySelector('[contenteditable]');
+ for(let count=1;count<=3;count++){
+  const down=new PointerEvent('pointerdown',{detail:0,button:0,bubbles:true,composed:true,cancelable:true});
+  // Stop at the sink to isolate the page handler from DOM-less hit testing.
+  target.addEventListener('pointerdown',e=>e.stopPropagation(),{once:true});target.dispatchEvent(down);
+  if(count===3)f.selection={ranges:[[0,f.lastOffset]]};
+  const mouse=new MouseEvent('mousedown',{detail:count,button:0,bubbles:true,composed:true,cancelable:true});target.dispatchEvent(mouse);
+  if(count===3){assert(mouse.defaultPrevented);assert.deepEqual(f.selection.ranges,[[range.start,range.end]]);}
+  target.dispatchEvent(new MouseEvent('click',{detail:count,button:0,bubbles:true,composed:true,cancelable:true}));
+ }
+ assert.deepEqual(f.selection.ranges,[[range.start,range.end]]);assert.equal(f.getValue(f.selection,'latex'),'x+2');
+ // A fourth rapid click must not let the native whole-document selection win.
+ f.selection={ranges:[[0,f.lastOffset]]};target.dispatchEvent(new MouseEvent('mousedown',{detail:4,button:0,bubbles:true,composed:true,cancelable:true}));
+ assert.deepEqual(f.selection.ranges,[[range.start,range.end]]);f.parentElement.remove();
+});
+
+test('three zero-count pointer presses select the line before MathLive can select all',async()=>{
+ const {pageLineRange}=await import('../src/page-lines.js');
+ const f=scratch();await type(f,'a=1\nx+2\nb=3');
+ const position=Array.from({length:f.lastOffset+1},(_,n)=>n).find(n=>f._mathfield.model.at(n)?.value==='x');
+ const range=pageLineRange(f,position);f.getOffsetFromPoint=()=>position;
+ const target=f.shadowRoot.querySelector('[contenteditable]');
+ for(let n=0;n<3;n++){
+  target.addEventListener('pointerdown',e=>e.stopPropagation(),{once:true});
+  const event=new PointerEvent('pointerdown',{detail:0,button:0,clientX:30,clientY:50,bubbles:true,composed:true,cancelable:true});target.dispatchEvent(event);
+  assert.equal(event.defaultPrevented,n===2);
+ }
+ assert.deepEqual(f.selection.ranges,[[range.start,range.end]]);assert.equal(f.getValue(f.selection,'latex'),'x+2');f.parentElement.remove();
+});
+
+test('dictation input recovers buffer-only text and paste input without a ClipboardEvent',async()=>{
+ for(const mode of ['auto','math','text'])for(const kind of ['insertReplacementText','insertText','insertFromPaste']){
+  const f=scratch();f.pageInputMode=mode;f.resetProseInput();f.mode=mode==='text'?'text':'math';installPageHistory(f);
+  const sink=f.shadowRoot.querySelector('[part=keyboard-sink]');
+  assert.equal(sink.getAttribute('aria-multiline'),'true');assert.equal(sink.getAttribute('inputmode'),'text');
+  const source='x is less than 2';sink.textContent=source;
+  const event=new InputEvent('input',{inputType:kind,data:kind==='insertFromPaste'?source:null,bubbles:true,composed:true,cancelable:true});sink.dispatchEvent(event);await settle();
+  assert(event.defaultPrevented);assert.equal(sink.textContent,'');assert.equal(f.errors.length,0);
+  if(mode==='text')assert.equal(f.getValue('plain-text'),source);else{assert.match(f.value,/x<2/);assert(!f.value.includes('is less than'));}
+  const inserted=f.value;f.pageHistory.undo();assert.equal(f.value,'');f.pageHistory.redo();assert.equal(f.value,inserted);
+  f.pageHistory.dispose();f.parentElement.remove();
+ }
+});
+test('a clipboard paste and its trailing paste input insert once while two paste actions insert twice',async()=>{
+ const f=scratch();installPageHistory(f);const sink=f.shadowRoot.querySelector('[part=keyboard-sink]');
+ const source='x is less than 2';
+ const paste=()=>{const event=new Event('paste',{bubbles:true,composed:true,cancelable:true});Object.defineProperty(event,'clipboardData',{value:{getData:type=>type==='text/plain'?source:''}});const before=f.value;sink.dispatchEvent(event);assert(!event.defaultPrevented);assert.equal(f.value,before);sink.textContent=source;sink.dispatchEvent(new InputEvent('input',{inputType:'insertFromPaste',data:null,bubbles:true,composed:true}));};
+ paste();assert.equal(sink.textContent,source);const once=f.value;
+ sink.textContent=source;sink.dispatchEvent(new InputEvent('input',{inputType:'insertFromPaste',data:source,bubbles:true,composed:true,cancelable:true}));await settle();assert.equal(f.value,once);
+ paste();await settle();assert.equal((f.value.match(/x<2/g)||[]).length,2);f.pageHistory.undo();assert.equal(f.value,once);f.pageHistory.redo();assert.equal((f.value.match(/x<2/g)||[]).length,2);
+ f.pageHistory.dispose();f.parentElement.remove();
+});
+test('native paste retains structured clipboard data and an abandoned paste does not insert',async()=>{
+ const f=scratch(),sink=f.shadowRoot.querySelector('[part=keyboard-sink]');
+ const paste=()=>{const event=new Event('paste',{bubbles:true,composed:true,cancelable:true});Object.defineProperty(event,'clipboardData',{value:{getData:type=>({'text/plain':'one half','application/x-latex':'\\frac{1}{2}'})[type]||''}});sink.dispatchEvent(event);assert(!event.defaultPrevented);};
+ paste();await settle();assert.equal(f.value,'');
+ paste();sink.textContent='one half';sink.dispatchEvent(new InputEvent('input',{inputType:'insertFromPaste',data:null,bubbles:true,composed:true}));await settle();assert.match(f.value,/\\frac\{1\}\{2\}/);assert.equal(sink.textContent,'one half');f.parentElement.remove();
+});
+test('text-service recovery preserves composition and read-only fields',async()=>{
+ const f=scratch(),sink=f.shadowRoot.querySelector('[part=keyboard-sink]');
+ sink.textContent='unfinished';sink.dispatchEvent(new InputEvent('input',{inputType:'insertCompositionText',isComposing:true,data:null,bubbles:true}));assert.equal(f.value,'');
+ sink.textContent='';f.readOnly=true;sink.textContent='x is less than 2';sink.dispatchEvent(new InputEvent('input',{inputType:'insertReplacementText',data:null,bubbles:true,composed:true,cancelable:true}));await settle();assert.equal(f.value,'');assert.equal(sink.textContent,'');f.parentElement.remove();
+});
+test('opt-in paste diagnostics distinguish native insertion and echoes without recording text',async()=>{
+ const ordinary=scratch();assert.equal(ordinary.pasteDiagnostics,undefined);ordinary.parentElement.remove();
+ window.history.replaceState({},'', '/?pasteDebug=1');
+ let f;
+ try{f=scratch();}finally{window.history.replaceState({},'','/');}
+ const sink=f.shadowRoot.querySelector('[part=keyboard-sink]'),source='z is less than 47';
+ const event=new Event('paste',{bubbles:true,composed:true,cancelable:true});Object.defineProperty(event,'clipboardData',{value:{getData:type=>type==='text/plain'?source:''}});sink.dispatchEvent(event);
+ sink.textContent=source;sink.dispatchEvent(new InputEvent('input',{inputType:'insertFromPaste',data:null,bubbles:true,composed:true}));
+ sink.textContent=source;sink.dispatchEvent(new InputEvent('input',{inputType:'insertFromPaste',data:source,bubbles:true,composed:true}));await settle();
+ const report=f.pasteDiagnostics.snapshot();
+ assert(report.events.some(row=>row.kind==='paste:awaiting-native-input'));
+ assert(report.events.some(row=>row.kind==='paste:converted'&&row.changed&&row.handled));
+ assert(report.events.some(row=>row.kind==='paste:echo-suppressed'));
+ assert(report.events.some(row=>row.kind==='paste:settled'&&row.cancelled===false));
+ const serialized=JSON.stringify(report);assert(!serialized.includes(source));assert(!serialized.includes(f.value));assert(!serialized.includes('less than'));
+ for(let i=0;i<140;i++)sink.dispatchEvent(new InputEvent('beforeinput',{inputType:'insertText',data:source,bubbles:true,composed:true}));await settle();assert.equal(f.pasteDiagnostics.snapshot().events.length,120);
+ f.parentElement.remove();
+});
+test('diagnostics autosave metadata only after a development receiver opts in',async()=>{
+ const originalFetch=globalThis.fetch,requests=[];let f;
+ globalThis.fetch=async(url,options={})=>{requests.push({url,...options});return {ok:true,json:async()=>options.method==='POST'?{saved:true}:{service:'lemma-paste-diagnostics',schema:1,enabled:true}};};
+ try{
+  window.history.replaceState({},'','/?pasteDebug=1');f=scratch();window.history.replaceState({},'','/');
+  const sink=f.shadowRoot.querySelector('[part=keyboard-sink]');sink.textContent='r is less than 19';sink.dispatchEvent(new InputEvent('input',{inputType:'insertReplacementText',data:null,bubbles:true,composed:true}));
+  await new Promise(resolve=>setTimeout(resolve,250));
+  const saved=requests.filter(request=>request.method==='POST');assert.equal(saved.length,1);
+  const body=JSON.parse(saved[0].body);assert.equal(body.schema,1);assert.match(body.capture,/^[a-f0-9-]{36}$/);assert(body.events.some(row=>row.kind==='input:recovered'&&row.changed));assert(!saved[0].body.includes('less than'));assert(!saved[0].body.includes(f.value));
+ }finally{f?.parentElement.remove();globalThis.fetch=originalFetch;window.history.replaceState({},'','/');}
+});
+test('native readback retains pasted text without inserting the retained buffer twice',async()=>{
+ let f;window.history.replaceState({},'','/?pasteDebug=1&pasteReadback=1');
+ try{f=scratch();}finally{window.history.replaceState({},'','/');}
+ const sink=f.shadowRoot.querySelector('[part=keyboard-sink]'),source='t is less than 31';
+ const paste=()=>{const event=new Event('paste',{bubbles:true,composed:true,cancelable:true});Object.defineProperty(event,'clipboardData',{value:{getData:type=>type==='text/plain'?source:''}});sink.dispatchEvent(event);assert(!event.defaultPrevented);sink.textContent+=source;sink.dispatchEvent(new InputEvent('input',{inputType:'insertFromPaste',data:null,bubbles:true,composed:true}));};
+ paste();await settle();assert.equal(sink.textContent,source);assert.equal((f.value.match(/t<31/g)||[]).length,1);
+ paste();await settle();assert.equal(sink.textContent,source+source);assert.equal((f.value.match(/t<31/g)||[]).length,2);
+ sink.dispatchEvent(new InputEvent('input',{inputType:'insertText',data:'q',bubbles:true,composed:true}));await settle();assert.equal(sink.textContent,'');assert.match(f.value,/q/);f.parentElement.remove();
+});
+function readbackScratch(mode='auto'){
+ window.history.replaceState({},'','/?pasteDebug=1&pasteReadback=1');
+ let f;try{f=scratch();}finally{window.history.replaceState({},'','/');}
+ f.pageInputMode=mode;f.resetProseInput();f.mode=mode==='text'?'text':'math';return f;
+}
+function nativePaste(f,source){
+ const sink=f.shadowRoot.querySelector('[part=keyboard-sink]');
+ const event=new Event('paste',{bubbles:true,composed:true,cancelable:true});Object.defineProperty(event,'clipboardData',{value:{getData:type=>type==='text/plain'?source:''}});sink.dispatchEvent(event);assert(!event.defaultPrevented);
+ sink.textContent+=source;sink.dispatchEvent(new InputEvent('input',{inputType:'insertFromPaste',data:null,bubbles:true,composed:true}));
+ return sink;
+}
+test('native readback works by default without diagnostic requests and can be disabled explicitly',async()=>{
+ const previousFetch=globalThis.fetch;let requests=0;globalThis.fetch=async()=>{requests++;throw Error('Unexpected request');};
+ let f;
+ try{
+  f=scratch();let sink=nativePaste(f,'k is less than 53');await settle();assert.equal(sink.textContent,'k is less than 53');assert.equal(f.pasteDiagnostics,undefined);assert.equal(requests,0);f.parentElement.remove();
+  window.history.replaceState({},'','/?pasteReadback=0');f=scratch();window.history.replaceState({},'','/');sink=nativePaste(f,'m is greater than 67');await settle();assert.equal(sink.textContent,'');assert.match(f.value,/m>67/);assert.equal(requests,0);
+ }finally{f?.parentElement.remove();window.history.replaceState({},'','/');globalThis.fetch=previousFetch;}
+});
+test('native readback supports repeated paste, toolbar history, replacement and typing in every mode',async()=>{
+ for(const mode of ['auto','math','text']){
+  const f=readbackScratch(mode);installPageHistory(f);
+  const sink=nativePaste(f,'u is less than 23');await settle();const once=f.value;assert(sink.textContent);
+  nativePaste(f,'u is less than 23');await settle();assert.notEqual(f.value,once);
+  f.pageHistory.undo();assert.equal(f.value,once);assert.equal(sink.textContent,'');
+  f.pageHistory.redo();assert.notEqual(f.value,once);assert.equal(sink.textContent,'');
+  nativePaste(f,'v is greater than 41');await settle();assert(sink.textContent);
+  f.selection={ranges:[[0,f.lastOffset]]};assert.equal(sink.textContent,'');
+  nativePaste(f,'w is equal to 59');await settle();assert.equal(sink.textContent,'w is equal to 59');assert(!f.value.includes('23'));assert(!f.value.includes('41'));
+  sink.dispatchEvent(new InputEvent('input',{inputType:'insertText',data:'q',bubbles:true,composed:true}));await settle();assert.equal(sink.textContent,'');assert.match(f.value,/q/);
+  f.pageHistory.dispose();f.parentElement.remove();
+ }
+});
+test('native readback expires on deletion, caret moves, blur and silent document replacement',async()=>{
+ for(const edit of [f=>f.executeCommand('deleteBackward'),f=>{f.position=0;},f=>f.shadowRoot.querySelector('[part=keyboard-sink]').dispatchEvent(new Event('blur')),f=>f.setValue('r+7',{silenceNotifications:true})]){
+  const f=readbackScratch('math'),sink=nativePaste(f,'x is less than 29');await settle();assert(sink.textContent);
+  edit(f);await settle();assert.equal(sink.textContent,'');f.parentElement.remove();
+ }
+});
+test('buffer-only typing after dictation inserts only new text and composition is not duplicated',async()=>{
+ const f=readbackScratch('text'),source='A quiet sample';const sink=nativePaste(f,source);await settle();
+ sink.textContent+=' followed by more';sink.dispatchEvent(new InputEvent('input',{inputType:'insertText',data:null,bubbles:true,composed:true}));await settle();
+ assert.equal(f.getValue('plain-text'),source+' followed by more');assert.equal(sink.textContent,'');
+ nativePaste(f,' another sample');await settle();assert(sink.textContent);
+ sink.dispatchEvent(new Event('compositionstart',{bubbles:true,composed:true}));assert.equal(sink.textContent,'');
+ sink.dispatchEvent(new InputEvent('input',{inputType:'insertCompositionText',data:'draft',isComposing:true,bubbles:true,composed:true}));assert(!f.value.includes('draft'));
+ sink.dispatchEvent(new Event('compositionend',{bubbles:true,composed:true}));f.parentElement.remove();
+});
+test('switching pages and restoring history never carries native readback into the next page',async()=>{
+ const f=readbackScratch('math');installPageHistory(f);nativePaste(f,'n is less than 61');await settle();
+ const content=f.value,history=f.pageHistory.serialize(),container=f.parentElement;f.pageHistory.dispose();
+ const next=createPageMathfield(container,'a+3',()=>{});assert.equal(next.shadowRoot.querySelector('[part=keyboard-sink]').textContent,'');assert.equal(next.value,'a+3');
+ const restored=createPageMathfield(container,content,()=>{});installPageHistory(restored,history);assert.equal(restored.value,content);assert.equal(restored.shadowRoot.querySelector('[part=keyboard-sink]').textContent,'');
+ restored.pageHistory.undo();assert.equal(restored.value,'');restored.pageHistory.redo();assert.equal(restored.value,content);restored.pageHistory.dispose();container.remove();
+});
+test('automatic normalization preserves valid readback for quantified and multiline dictation',async()=>{
+ for(const source of ['for all lanterns L, l is greater than 37','for all p, p is less than or equal to','a is less than 17\nb is greater than 43']){
+  const f=readbackScratch();let contentEvents=0;f.addEventListener('input',event=>{if(event.target===f)contentEvents++;});const sink=nativePaste(f,source);await new Promise(resolve=>setTimeout(resolve,300));
+  assert.equal(sink.textContent,source);assert(f.value);assert(!f.pasteDiagnostics.snapshot().events.some(row=>row.kind==='paste:echo-suppressed'));
+  assert(contentEvents<=4,'automatic formatting should settle instead of continuously rewriting the page');
+  f.parentElement.remove();
+ }
+});
+test('native Backspace preserves the Auto rejection rule and ordinary Math-mode deletion with readback',async()=>{
+ for(const mode of ['auto','math']){
+  const f=readbackScratch(mode);installPageHistory(f);const sink=nativePaste(f,'x is less than 23');await settle();assert(sink.textContent);
+  sink.dispatchEvent(new KeyboardEvent('keydown',{key:'Backspace',code:'Backspace',bubbles:true,composed:true,cancelable:true}));await settle();assert.equal(sink.textContent,'');
+  if(mode==='auto'){
+   assert.equal(f.getValue('plain-text'),'x is less than 2');assert(f.isProseLine());
+   sink.dispatchEvent(new InputEvent('input',{inputType:'insertText',data:'3',bubbles:true,composed:true}));await settle();assert.equal(f.getValue('plain-text'),'x is less than 23');assert(f.isProseLine());
+  }else{assert.equal(f.value,'x<2');}
+  f.pageHistory.dispose();f.parentElement.remove();
+ }
 });

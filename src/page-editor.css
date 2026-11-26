@@ -2,8 +2,10 @@
    Both desktop and web keep prose unshaded in light and dark system themes. */
 #math-page{
  --selection-background-color:#cfe0ca;
+ --selection-color:#293c30;
  --contains-highlight-background-color:transparent;
  --highlight-text:transparent;
  --text-highlight-background-color:transparent;
 }
 #math-page::selection{background:#cfe0ca}
+@media print{[data-paste-diagnostics]{display:none!important}}

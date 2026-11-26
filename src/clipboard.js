@@ -11,18 +11,28 @@ export function clipboardPayload(field){
  return {'text/plain':text,'application/x-latex':latex,'text/html':`<span style="white-space:pre-wrap">${html}</span>`,'application/mathml+xml':mathml.startsWith('<math')?mathml:`<math xmlns="http://www.w3.org/1998/Math/MathML">${mathml}</math>`};
 }
 export function insertClipboard(field,types,{onError=()=>{}}={}){
+ if(!field._mathfield?.isSelectionEditable)return false;
  const latex=types['application/x-latex'];let source=latex||types['text/plain'];
  if(!source)return false;
  if(source.length>2_000_000){onError('Pasted content exceeds the page limit.');return true;}
+ field.dismissAutomaticConversion?.();
  try{
   let value;
-  if(latex||field.pageInputMode!=='text'&&looksLikeLatex(source))value=importLatex(source);
-  else value=plainInputToLatex(source,{groups:field.notationGroups,libraries:field.customDictionaries,shortcuts:field.getNotationShortcuts?.(),mode:field.pageInputMode,afterMath:pasteFollowsMath(field)});
+  if(latex||field.pageInputMode!=='text'&&!field.isProseLine?.()&&looksLikeLatex(source))value=importLatex(source);
+  else value=plainInputToLatex(source,{groups:field.notationGroups,libraries:field.customDictionaries,shortcuts:field.getNotationShortcuts?.(),mode:field.isProseLine?.()?'text':field.pageInputMode,afterMath:pasteFollowsMath(field)});
   if(validateLatex(value).length)throw Error('Pasted content contains unsupported or incomplete LaTeX. The current selection was preserved.');
+  const locked=field.isProseLine?.();
   field.proseSuspended=true;
-  const insert=()=>insertLatexContent(field,value);
+  const automatic=!latex&&field.pageInputMode==='auto'&&!field.isProseLine?.()&&!looksLikeLatex(source)&&value!==plainInputToLatex(source,{mode:'text'});
+  const insert=()=>{
+   if(!automatic){const result=insertLatexContent(field,value);if(locked)field.keepLineProse?.();return result;}
+   const range=field.selection.ranges.flat();
+   return field.trackAutomaticConversion({start:Math.min(...range),end:Math.max(...range),text:source,cursor:source.length},()=>{
+    insertLatexContent(field,value);field.noteQuantifiedSources?.(source,Math.min(...range),field.position);
+   });
+  };
   if(field.pageHistory)field.pageHistory.transaction(insert);else insert();
-  setTimeout(()=>{field.proseSuspended=false;},0);
+  setTimeout(()=>{field.proseSuspended=false;const reassess=()=>field.reassessProseInput?.();if(field.reconcileNativeReadback)field.reconcileNativeReadback(reassess);else reassess();},0);
   return true;
  }catch(error){onError(error.message);return true;}
 }
@@ -37,16 +47,77 @@ function pasteFollowsMath(field){
  }
  return false;
 }
-export function installClipboard(field,onError){
+export function installClipboard(field,onError,diagnose=()=>{}){
+ const sink=field.shadowRoot.querySelector('[part=keyboard-sink]');
+ // This is an editable multiline document, including for text-service clients.
+ sink.setAttribute('aria-multiline','true');sink.setAttribute('inputmode','text');
+ const debugParams=new URLSearchParams(location.search);
+ const retainNativeReadback=debugParams.get('pasteReadback')!=='0';
+ let pasteReceipt=null,pendingPaste=null,composing=false,nativeReadback=null,reconcilingReadback=false;
+ const state=()=>field.value+'\u0000'+JSON.stringify(field.selection);
+ const reset=()=>{pasteReceipt=null;pendingPaste=null;};
+ const clearReadback=()=>{if(nativeReadback&&!reconcilingReadback){sink.textContent='';nativeReadback=null;}};
+ field.addEventListener('keydown',()=>{reset();clearReadback();},true);field.addEventListener('pointerdown',()=>{reset();clearReadback();},true);
+ if(retainNativeReadback){
+  field.reconcileNativeReadback=fn=>{
+   if(!nativeReadback||nativeReadback.state!==state())return fn();
+   // This synchronous callback only finishes formatting the accepted paste.
+   // No new user input can interleave; keep its receipt valid after formatting.
+   reconcilingReadback=true;
+   try{return fn();}finally{reconcilingReadback=false;if(nativeReadback){nativeReadback.state=state();if(sink.textContent!==nativeReadback.buffer)sink.textContent=nativeReadback.buffer;}}
+  };
+  // Readback is a receipt for the last insertion, not a second document model.
+  // Expire it whenever editing, navigation, history or page replacement makes
+  // the received text an inaccurate representation of the current position.
+  sink.addEventListener('blur',clearReadback);
+  field.addEventListener('beforeinput',event=>{if(event.inputType!=='insertFromPaste')clearReadback();},true);
+  field.addEventListener('selection-change',()=>{if(nativeReadback&&nativeReadback.state!==state())clearReadback();});
+  field.addEventListener('input',()=>{if(nativeReadback&&nativeReadback.state!==state())clearReadback();});
+  const setValue=field.setValue.bind(field);
+  field.setValue=(...args)=>{clearReadback();return setValue(...args);};
+ }
+ sink.addEventListener('compositionstart',()=>{composing=true;reset();clearReadback();});
+ sink.addEventListener('compositionend',()=>{composing=false;});
+ sink.addEventListener('input',event=>{
+  if(composing||event.isComposing||/Composition/.test(event.inputType||''))return;
+  let source=event.data||sink.textContent||'';
+  // A buffer-only insertion can append to the retained receipt. Only the new
+  // suffix is input; re-inserting the whole buffer would repeat old dictation.
+  if(event.inputType==='insertText'&&!event.data&&nativeReadback&&source.startsWith(nativeReadback.buffer))source=source.slice(nativeReadback.buffer.length);
+  if(event.inputType!=='insertFromPaste'&&(event.data||!source||!['insertText','insertReplacementText'].includes(event.inputType))){reset();return;}
+  // Some accessibility clients write the editable buffer, then send an input
+  // event without data. Others deliver paste input without a ClipboardEvent.
+  const readback=retainNativeReadback&&event.inputType==='insertFromPaste'&&pendingPaste?sink.textContent:null;
+  event.preventDefault();event.stopImmediatePropagation();if(readback===null){clearReadback();sink.textContent='';}
+  const receipt=pasteReceipt,payload=pendingPaste;reset();
+  if(event.inputType==='insertFromPaste'&&payload){
+   const before=field.value,handled=insertClipboard(field,payload,{onError});
+   if(readback!==null&&handled&&field.value!==before){if(sink.textContent!==readback)sink.textContent=readback;nativeReadback={buffer:readback,state:state()};diagnose('input:readback-retained',{bufferCharacters:sink.textContent.length});}
+   else if(readback!==null){clearReadback();sink.textContent='';}
+   diagnose('paste:converted',{native:true,handled,changed:field.value!==before});
+   pasteReceipt={source:payload['text/plain']||payload['application/x-latex'],state:state()};
+   return;
+  }
+  // A trailing insertFromPaste belongs to the clipboard event already consumed.
+  // A new paste/key/caret action resets this receipt, so deliberate repeats work.
+  if(event.inputType==='insertFromPaste'&&receipt&&receipt.state===state()&&(!source||source===receipt.source)){diagnose('paste:echo-suppressed');return;}
+  if(source){const before=field.value,handled=insertClipboard(field,{'text/plain':source},{onError});diagnose('input:recovered',{handled,changed:field.value!==before,characters:source.length});}
+ },true);
+
  // The keyboard delegate receives completed text from transcription tools.
  // Hook that boundary rather than beforeinput, which MathLive also emits for
  // internal formatting, source edits, and caret operations.
  const editor=field._mathfield,originalInput=editor.onInput.bind(editor);
- editor.onInput=text=>{
+ editor.onInput=(text,options)=>{
+  // Text services bypass the physical Space binding. Insert its configured
+  // math spacing as LaTeX so auto-format detection cannot strip the space.
+  if(text===' '&&field.mode==='math'&&field.mathModeSpace&&field.pageInputMode!=='text'&&!field.isProseLine?.()){
+   field.executeCommand(['insert',field.mathModeSpace,{format:'latex',mode:'math',selectionMode:'after'}]);return;
+  }
   if(!field.proseSuspended&&field.mode!=='latex'&&typeof text==='string'&&text.length>1&&/[A-Za-z]/.test(text)){
    insertClipboard(field,{'text/plain':text},{onError});return;
   }
-  return originalInput(text);
+  return originalInput(text,options);
  };
  field.addEventListener('copy',event=>{
   if(field.selectionIsCollapsed||!event.clipboardData)return;
@@ -60,8 +131,23 @@ export function installClipboard(field,onError){
  },true);
  field.addEventListener('paste',event=>{
   if(!event.clipboardData)return;
+  reset();
   const types={};for(const type of ['application/x-latex','text/plain'])types[type]=event.clipboardData.getData(type);
-  if(insertClipboard(field,types,{onError})){event.preventDefault();event.stopImmediatePropagation();}
+  if(event.composedPath()[0]===sink&&field._mathfield?.isSelectionEditable&&(types['text/plain']||types['application/x-latex'])){
+   // Let Chromium complete its native editable paste. Cancelling the paste
+   // after inserting only into the math model can look like a failed native
+   // insertion to text services. Consume its resulting input exactly once.
+   pendingPaste=types;
+   diagnose('paste:awaiting-native-input',{native:true,characters:(types['text/plain']||types['application/x-latex']).length});
+   event.stopImmediatePropagation();
+   return;
+  }
+  if(insertClipboard(field,types,{onError})){
+   // Match MathLive's native paste cleanup when taking ownership of the event.
+   sink.textContent='';sink.focus({preventScroll:true});
+   pasteReceipt={source:types['text/plain']||types['application/x-latex'],state:state()};
+   event.preventDefault();event.stopImmediatePropagation();
+  }
  },true);
 }
 
