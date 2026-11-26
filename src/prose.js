@@ -1,8 +1,9 @@
-import {quantifiedInput} from './plain-input.js';
-import {tokenizeMath} from './spoken-math.js';
+import {quantifiedInput,relativeComparisonInput,liveFractionInput,livePrefixInput} from './plain-input.js';
+import {tokenizeMath,hasPendingSpokenOperator} from './spoken-math.js';
 import {loadDictionaries,validateDictionaries,dictionaryPhrases,validDictionaryPhrase} from './custom-dictionary.js';
 import {MATH_WORDS,namedOperator,vocabulary,phraseAtEnd,symbolPhrase,loadNotationGroups,hasPendingPhrase,normalizeGroups,shortcutEnabled} from './math-words.js';
 import {insertPageBreak} from './editing.js';
+import {withEquationTypography} from './formatting.js';
 // Recognize words, rather than repeatedly guessing whether each character is math.
 // Once a run becomes prose, its numbers and punctuation remain prose until a
 // newline or an explicit backtick math span. Deletion re-evaluates the run
@@ -11,6 +12,7 @@ const phraseSources=new WeakMap();
 const SHORT_WORDS=new Set('an as at be by do he if in is it of on or so to us we'.split(' '));
 
 export function looksLikeProse(text,enabled,libraries){
+ if(hasPendingSpokenOperator(text,{groups:enabled,libraries}))return false;
  const config=vocabulary(enabled,libraries),mathWords=config.words;
  let candidate=text.toLowerCase(),prefixLength=0;
  const trimmed=candidate.trimEnd(),trailing=candidate.length-trimmed.length;
@@ -63,6 +65,28 @@ function connectedRun(field,whole=false){
    const finish=model.offsetOf(candidate),begin=candidate.hasChildren?model.offsetOf(candidate.firstChild)-1:finish-1;
    if(backward?finish!==offset:begin!==offset)continue;
    const known=phraseSources.get(candidate)||symbolPhrase('',candidate);
+   // Accent source includes its operand; reading only the command's phrase
+   // would drop that operand when a later spoken fraction is composed.
+   if(candidate.command==='\\vec'){
+    const body=candidate.body?.filter(child=>child.type!=='first')||[];
+    const parts=body.map(child=>{
+     if(!child.hasChildren&&/^[A-Za-z0-9α-ωΑ-Ω\s]$/u.test(child.value||''))return child.value;
+     if(child.type==='subsup'){
+      let result='';
+      for(const [branch,word]of [['subscript','subscript'],['superscript','superscript']]){
+       const digits=child[branch]?.filter(atom=>atom.type!=='first');
+       if(!digits?.length)continue;
+       if(!digits.every(atom=>!atom.hasChildren&&/^\d$/.test(atom.value||'')))return null;
+       result+=' '+word+' '+digits.map(atom=>atom.value).join('');
+      }
+      return result||null;
+     }
+     return null;
+    });
+    if(!body.length||parts.includes(null))continue;
+    const text='vector '+parts.join('');
+    return {start:begin,end:finish,text,math:true,notation:true,styles:[...text].map(()=>styleOf(candidate))};
+   }
    if(!known&&(candidate.hasChildren||!candidate.style?.variant))continue;
    const phrase=known||symbolPhrase(field.getValue([begin,finish],'latex'),candidate);
    if(phrase)return {start:begin,end:finish,text:phrase.text,math:true,notation:true,styles:[...phrase.text].map(()=>styleOf(candidate))};
@@ -112,6 +136,15 @@ function phraseRange(run,phrase,position){
  return start===undefined||end===undefined?null:{start,end,trailing};
 }
 
+function liveStructure(run,options){
+ const fraction=liveFractionInput(run.text,options);if(fraction)return fraction;
+ // Already rendered prefixes retain source metadata for later composition.
+ // Rewriting them on every subsequent letter would erase word boundaries
+ // while an unrelated word or operator is still being typed.
+ const literal=run.units.map(unit=>unit.notation&&!unit.wordlike?' '.repeat(unit.text.length):unit.text).join('');
+ return tokenizeMath(literal,options).some(token=>token.type==='prefix')?livePrefixInput(run.text,options):null;
+}
+
 // A relation needs an operand, not merely an earlier word in the sentence.
 function phraseHasContext(field,run,phrase){
  if(!phrase?.context)return true;
@@ -132,7 +165,7 @@ function phraseHasContext(field,run,phrase){
 }
 
 export function installProseInput(field){
- let converting=false,explicitMath=false,mathStart=0,pendingTemplateSpace=false,lastQuantifiedAssessment=null;
+ let converting=false,explicitMath=false,mathStart=0,pendingTemplateSpace=false,lastConnectedAssessment=null;
  const sources=new Map();
  try{field.customDictionaries=loadDictionaries(field.ownerDocument.defaultView.localStorage);}catch{field.customDictionaries=[];}
  field.setCustomDictionaries=libraries=>{field.customDictionaries=validateDictionaries(libraries);};
@@ -155,10 +188,10 @@ export function installProseInput(field){
  };
  field.noteQuantifiedSources=(source,start,end)=>{
   const tokens=tokenizeMath(source,{groups:field.notationGroups,libraries:field.customDictionaries});
-  if(tokens[0]?.type!=='quantifier')return;
+  if(!tokens.some(token=>['quantifier','prefix'].includes(token.type)))return;
   let offset=start+1;const caret=field.position,model=field._mathfield.model;
   for(const token of tokens){
-   if(!['op','quantifier'].includes(token.type))continue;
+   if(!['op','quantifier','prefix'].includes(token.type))continue;
    const text=source.slice(token.start,token.end).toLowerCase();if(!/[A-Za-z]/.test(text))continue;
    for(let i=offset;i<=end;i++){
     const atom=model.at(i);
@@ -179,16 +212,17 @@ export function installProseInput(field){
  field.smartMode=false;
  field.resetProseInput=()=>{field.dismissAutomaticConversion?.();explicitMath=false;pendingTemplateSpace=false;updateShortcuts();};
  updateShortcuts();
- field.reassessProseInput=()=>{
+ field.reassessProseInput=(assessment)=>{
   if(converting||field.proseSuspended||field.isProseLine?.()||!['auto','math'].includes(field.pageInputMode)||explicitMath||field.mode==='latex'||!field.selectionIsCollapsed)return false;
   const run=connectedRun(field,true);
-  // Use the bulk-input grammar for a whole connected quantified statement.
+  // Use the bulk-input grammar for a whole connected mathematical statement.
   // Only literal non-space text needs replacement; preserve existing math spaces.
-  const assessed=quantifiedInput(run.text,{groups:field.notationGroups,libraries:field.customDictionaries,shortcuts});
+  const options={groups:field.notationGroups,libraries:field.customDictionaries,shortcuts};
+  const assessed=assessment||quantifiedInput(run.text,options)||relativeComparisonInput(run.text,options)||liveStructure(run,options);
   if(assessed)field._mathfield.model.mode='math';
   if(assessed&&field.position===run.end){
    const settings=JSON.stringify([field.pageInputMode,field.notationGroups,field.customDictionaries]);
-   if(lastQuantifiedAssessment?.latex===field.value&&lastQuantifiedAssessment.position===field.position&&lastQuantifiedAssessment.settings===settings)return false;
+   if(lastConnectedAssessment?.latex===field.value&&lastConnectedAssessment.position===field.position&&lastConnectedAssessment.settings===settings)return false;
    const style=run.styles[0]||{},uniform=run.styles.every(value=>JSON.stringify(value)===JSON.stringify(style));
    if(uniform){
     const latex=assessed.latex;
@@ -196,17 +230,19 @@ export function installProseInput(field){
      converting=true;field.proseConverting=true;
      try{field.trackAutomaticConversion(run,()=>{
       field.selection={ranges:[[run.start,run.end]]};
-      field.executeCommand(['insert',latex,{format:'latex',mode:'math',selectionMode:'after'}]);
-      const end=field.position;
+      const previousLast=field.lastOffset;
+      field.executeCommand(['insert',latex,{format:'latex',mode:'math',selectionMode:assessed.pendingPlaceholder?'placeholder':'after'}]);
+      const selection=field.selection,end=run.end+field.lastOffset-previousLast;
       field.noteQuantifiedSources(run.text,run.start,end);
       const binder=run.text.trimStart().match(/^(for all values?)\s+[A-Za-z]\b/i);
       if(binder){field.position=run.start+1;field.notePhraseSource({text:binder[1].toLowerCase(),latex:'\\forall',context:false});field.position=end;}
       if(Object.keys(style).length){field.selection={ranges:[[run.start,end]]};field.applyStyle(style,{operation:'set'});field.position=end;}
+      if(assessed.pendingPlaceholder)field.selection=selection;
       field._mathfield.model.mode='math';
      });}finally{converting=false;field.proseConverting=false;}
      // MathLive canonicalizes equivalent LaTeX spellings on insertion. Do not
      // rewrite that canonical result on the input event our own insert emits.
-     lastQuantifiedAssessment={latex:field.value,position:field.position,settings};
+     lastConnectedAssessment={latex:field.value,position:field.position,settings};
      return true;
     }
    }
@@ -222,6 +258,8 @@ export function installProseInput(field){
   if(forcedMath&&deletion)return;
   if(event.inputType&&!deletion&&!['insertText','insertFromPaste'].includes(event.inputType))return;
   const run=connectedRun(field,deletion),match=phraseAtEnd(run.text.trimEnd(),field.notationGroups,false,field.customDictionaries);
+  if(!deletion){const options={groups:field.notationGroups,libraries:field.customDictionaries,shortcuts},structure=liveStructure(run,options);if(structure&&field.reassessProseInput(structure))return;}
+  if(!deletion&&relativeComparisonInput(run.text,{groups:field.notationGroups,libraries:field.customDictionaries,shortcuts})&&field.reassessProseInput())return;
   const quantified=quantifiedInput(run.text,{groups:field.notationGroups,libraries:field.customDictionaries,shortcuts});
   if(quantified&&!forcedMath){
    if(!deletion&&field.reassessProseInput())return;
@@ -288,7 +326,8 @@ export function installProseInput(field){
      field._mathfield.stopCoalescingUndo();
     }
     field.selection={ranges:[[run.start,run.end]]};
-    field.executeCommand(['insert',prose?run.text:latex,{format:prose?'text':'latex',mode:prose?'text':'math',selectionMode:'after'}]);
+    const insert=()=>field.executeCommand(['insert',prose?run.text:latex,{format:prose?'text':'latex',mode:prose?'text':'math',selectionMode:'after'}]);
+    if(prose)insert();else withEquationTypography(field,insert,[run.start,run.end]);
     if(prose){
      const end=field.position;
      for(let i=0;i<run.styles.length;){
@@ -321,7 +360,10 @@ export function installProseInput(field){
    (event.key==='Enter'||event.key.length===1&&!/[A-Za-z`]/.test(event.key))){
    const run=connectedRun(field),word=run.text.match(/[A-Za-z]+$/)?.[0];
    const match=phraseAtEnd(run.text,field.notationGroups,false,field.customDictionaries);
-   const phrase=(field.pageInputMode==='math'||explicitMath||!looksLikeProse(run.classificationText,field.notationGroups,field.customDictionaries))&&match&&phraseHasContext(field,run,match)&&(!hasPendingPhrase(run.text,field.notationGroups,field.customDictionaries)||match.text===run.text.trim().toLowerCase())&&match;
+   // "or" remains usable while a compound sign is unfinished. Its source
+   // metadata lets the complete phrase replace the provisional symbol later.
+   const provisionalOr=match?.text==='or'&&/(?:^| )(?:plus|minus) or$/i.test(run.text.trim());
+   const phrase=(field.pageInputMode==='math'||explicitMath||!looksLikeProse(run.classificationText,field.notationGroups,field.customDictionaries))&&match&&phraseHasContext(field,run,match)&&(!hasPendingPhrase(run.text,field.notationGroups,field.customDictionaries)||match.text===run.text.trim().toLowerCase()||provisionalOr)&&match;
    const range=phrase&&phraseRange(run,phrase,field.position);
    if(range&&field.getValue([range.start,range.end],'latex')!==phrase.latex){
     converting=true;field.proseConverting=true;

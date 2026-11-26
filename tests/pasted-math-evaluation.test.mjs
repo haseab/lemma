@@ -27,15 +27,16 @@ test('generated combinations retain complete expression trees, not just matching
  assert.equal(count,288);
 });
 test('ambiguous scopes and unknown transcript repairs are never salvaged as a different expression',()=>{
- for(const input of ['Compute square root of x plus y.','Consider one over x plus two.','Please use start fraction a plus b over c.','e to the power of i x equals cosine of x plus i side of x','The root of an idea matters.'])assert.equal(plainInputToLatex(input),`\\text{${input}}`,input);
+ for(const input of ['Please use start fraction a plus b over c.','e to the power of i x equals cosine of x plus i side of x','The root of an idea matters.'])assert.equal(plainInputToLatex(input),`\\text{${input}}`,input);
  assert.equal(normalized(plainInputToLatex('I know x squared equals twenty five.')),normalized('\\text{I know }x^{2}=25\\text{.}'));
 });
 test('malformed delimiters, excessive nesting, punctuation and unknown identifiers remain text',()=>{
  for(const input of ['x plus mystery','open parenthesis x close bracket','x to the power of','open parenthesis '.repeat(80)+'x','This uses customer_name in code.'])assert.equal(plainInputToLatex(input),`\\text{${input.replace(/_/g,'\\_')}}`,input);
 });
-test('command boundaries and spoken fraction scope do not silently change meaning',()=>{
+test('command boundaries distinguish spoken fraction bars from slash precedence',()=>{
  const result=plainInputToLatex('rho p squared');assert.equal(validateLatex(result).length,0);assert.equal(normalized(result),normalized('\\rho p^{2}'));
- for(const input of ['b minus a over n','Please compute b minus a over n.','square root of x over seven','x to the power of n times y'])assert.equal(plainInputToLatex(input),`\\text{${input}}`);
+ for(const [input,expected] of [['b minus a over n','\\frac{b-a}{n}'],['Please compute b minus a over n.','\\text{Please compute }\\frac{b-a}{n}\\text{.}'],['square root of x over seven','\\frac{\\sqrt{x}}{7}'],['Compute square root of x plus y.','\\text{Compute }\\sqrt{x+y}\\text{.}'],['Consider one over x plus two.','\\text{Consider }\\frac{1}{x}+2\\text{.}']])assert.equal(normalized(plainInputToLatex(input)),normalized(expected));
+ assert.equal(normalized(plainInputToLatex('x to the power of n times y')),normalized('x^{n}\\times y'));
  assert.equal(normalized(plainInputToLatex('b - a/n')),normalized('b-\\frac{a}{n}'));
 });
 test('disabled notation and oversized matrix requests cannot fall back to another structure',()=>{

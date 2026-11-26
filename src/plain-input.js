@@ -2,6 +2,28 @@ import {tokenizeMath,parseMath} from './spoken-math.js';
 import {escapeText,mixedTextToLatex} from './formats.js';
 import {phraseAtEnd} from './math-words.js';
 
+// Normalize literal identifiers before parsing pasted plain text. Token boundaries
+// protect prose, commands, custom definitions and explicit spoken case qualifiers.
+export function lowercasePastedVariables(source,options={}){
+ if(options.mode==='text')return source;
+ if(/[\r\n]/.test(source))return source.split(/(\r\n|\r|\n)/).map(part=>/[\r\n]/.test(part)?part:lowercasePastedVariables(part,options)).join('');
+ if(source.length>16000||/`|\$/.test(source))return source;
+ const tokens=tokenizeMath(source,options),eligible=new Set();
+ for(let index=0;index<tokens.length;index++){
+  const parsed=parseMath(tokens,index,{allowIncompleteRelation:true,allowIncompleteFraction:/\s$/.test(source),allowIncompletePrefix:/\s$/.test(source)});
+  if(!parsed)continue;
+  const whole=index===0&&(parsed.end===tokens.length||parsed.end===tokens.length-1&&'.;?!'.includes(tokens.at(-1).value));
+  if(!whole&&parsed.evidence<2)continue;
+  const following=tokens[parsed.end];
+  if(!whole&&following?.type==='word'&&!['where','when','and','then','for','is'].includes(following.value.toLowerCase()))continue;
+  for(let n=index;n<parsed.end;n++)eligible.add(tokens[n]);
+  index=parsed.end-1;
+ }
+ const edits=tokens.filter(token=>eligible.has(token)&&token.variable&&!token.custom&&/^[A-Za-zα-ωΑ-Ω]+\d*$/u.test(source.slice(token.start,token.end)));
+ for(const token of edits.reverse())source=source.slice(0,token.start)+source.slice(token.start,token.end).replace(/[A-Za-zΑ-Ω]/gu,letter=>letter==='Δ'?letter:letter.toLowerCase())+source.slice(token.end);
+ return source;
+}
+
 export function plainInputToLatex(source,options={}){
  if(options.mode==='text')return mixedTextToLatex(source);
  const rows=source.replace(/\r\n?/g,'\n').split('\n').map((line,row)=>{
@@ -11,13 +33,14 @@ export function plainInputToLatex(source,options={}){
   if(!tokens.length)return '';
   // Preserve the established editable-template path for a standalone dictionary
   // phrase or dimensioned matrix, without letting it expand inside prose.
-  const definition=phraseAtEnd(line.trim().toLowerCase(),options.groups,false,options.libraries);
+  const standalone=line.trim().replace(/\s+/g,' ').toLowerCase();
+  const definition=phraseAtEnd(standalone,options.groups,false,options.libraries);
   if(!definition&&/^\s*\d+\s*(?:x|×|by)\s*\d+\s+matrix\s*$/i.test(line))return `\\text{${escapeText(line)}}`;
-  if(definition?.text===line.trim().toLowerCase()&&(!definition.context||afterMath)){
+  if(definition?.text===standalone&&!tokens.some(token=>token.type==='prefix')&&(!definition.context||afterMath)){
    if(['\\forall','\\exists','\\nexists'].includes(definition.latex))return definition.latex+mixedTextToLatex(line.match(/\s+$/)?.[0]||'');
    return `{${definition.latex}}`;
   }
-  const complete=tokens[0]?.type==='quantifier'?quantifiedInput(line,options):parseMath(tokens,0,{afterMath,allowIncompleteRelation:true});
+  const complete=tokens[0]?.type==='quantifier'?quantifiedInput(line,options):parseMath(tokens,0,{afterMath,allowIncompleteRelation:true,allowIncompleteFraction:/\s$/.test(line),allowIncompletePrefix:/\s$/.test(line)});
   if(complete?.end===tokens.length&&(complete.evidence||tokens.every(t=>t.type==='atom'&&t.variable||t.number)||options.mode==='math'))return complete.latex;
   if(complete?.end===tokens.length-1&&complete.evidence>=2&&tokens.at(-1).type==='punctuation'&&'.;?!'.includes(tokens.at(-1).value))return complete.latex+`\\text{${escapeText(line.slice(tokens.at(-1).start))}}`;
   if(options.mode==='math')return line.replace(/ /g,'\\ ');
@@ -27,9 +50,9 @@ export function plainInputToLatex(source,options={}){
   const pieces=[];let copied=0,index=0;
   while(index<tokens.length){
    const token=tokens[index];
-   if(!['atom','function','quantifier','root','rootStart','fraction','open','negative','absolute'].includes(token.type)){index++;continue;}
-   const parsed=parseMath(tokens,index);
-   if(!parsed&&(['root','rootStart','fraction','function','open','absolute'].includes(token.type)||['op','script','postfix'].includes(tokens[index+1]?.type)))break;
+   if(!['atom','function','quantifier','root','rootStart','fraction','open','spokenGroup','negative','absolute','prefix'].includes(token.type)){index++;continue;}
+   const parsed=parseMath(tokens,index,{stopAtComma:true});
+   if(!parsed&&(['root','rootStart','fraction','function','open','spokenGroup','absolute','prefix'].includes(token.type)||['op','script','postfix'].includes(tokens[index+1]?.type)))break;
    if(!parsed||parsed.evidence<2||parsed.end<=index+1){index=parsed?Math.max(index+1,parsed.end):index+1;continue;}
    const following=tokens[parsed.end];
    // Do not turn the beginning of a prose noun phrase into an expression.
@@ -42,6 +65,32 @@ export function plainInputToLatex(source,options={}){
   return pieces.join('')||`\\text{${escapeText(line)}}`;
  });
  return rows.length===1?rows[0]:`\\displaylines{${rows.join('\\\\')}}`;
+}
+
+// Completed spoken division and a fraction bar followed by a word boundary
+// share the same grammar. A pending denominator is an editable placeholder.
+function liveStructureInput(source,options,kind){
+ const tokens=tokenizeMath(source,options);
+ if(!tokens.some(token=>kind==='prefix'?token.type==='prefix':token.type==='op'&&token.spoken&&token.value==='/'))return null;
+ const parsed=parseMath(tokens,0,{afterMath:options.afterMath,allowIncompleteFraction:/\s$/.test(source),allowIncompletePrefix:/\s$/.test(source)});
+ if(!parsed)return null;
+ if(parsed.end===tokens.length)return {...parsed,latex:parsed.latex+(parsed.pendingPlaceholder?'':mixedTextToLatex(source.match(/\s+$/)?.[0]||''))};
+ if(parsed.end===tokens.length-1&&tokens.at(-1).type==='punctuation'&&'.;?!'.includes(tokens.at(-1).value))return {...parsed,latex:parsed.latex+mixedTextToLatex(source.slice(tokens.at(-1).start)),end:tokens.length};
+ return null;
+}
+
+export const liveFractionInput=(source,options={})=>liveStructureInput(source,options,'fraction');
+export const livePrefixInput=(source,options={})=>liveStructureInput(source,options,'prefix');
+
+// Reassess a completed relative comparison during ordinary incremental typing.
+// Require the structural parser to consume the whole mathematical statement.
+export function relativeComparisonInput(source,options={}){
+ if(!/\bwhich\b/i.test(source))return null;
+ const tokens=tokenizeMath(source,options),parsed=parseMath(tokens,0,{afterMath:options.afterMath});
+ if(!parsed?.relativeComparison)return null;
+ if(parsed.end===tokens.length)return {...parsed,latex:parsed.latex+mixedTextToLatex(source.match(/\s+$/)?.[0]||'')};
+ if(parsed.end===tokens.length-1&&tokens.at(-1).type==='punctuation'&&'.;?!'.includes(tokens.at(-1).value))return {...parsed,latex:parsed.latex+mixedTextToLatex(source.slice(tokens.at(-1).start)),end:tokens.length};
+ return null;
 }
 
 // Shared assessment for a connected quantified run, regardless of how it arrived.

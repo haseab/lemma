@@ -532,8 +532,8 @@ test('value quantifier wording stays math until rejected across input methods',a
   if(method==='typing')await type(f,input);
   else if(method==='paste')insertClipboard(f,{'text/plain':input});
   else f._mathfield.onInput(input);
-  await settle();assert.match(f.value,/\\forall/);assert.match(f.value,/V/);assert(!f.value.includes('\\text'),method+': '+f.value);assert.equal(f.errors.length,0);
-  const notation=f.value;await type(f,' we measured');await settle();assert.match(f.value,/\\forall/);assert(backspace(f).defaultPrevented);await type(f,'d');assert.equal(f.mode,'text');assert.match(f.getValue('plain-text'),/for all.*V we measured/);
+  await settle();assert.match(f.value,/\\forall/);assert.match(f.value,method==='typing'?/V/:/v/);assert(!f.value.includes('\\text'),method+': '+f.value);assert.equal(f.errors.length,0);
+  const notation=f.value;await type(f,' we measured');await settle();assert.match(f.value,/\\forall/);assert(backspace(f).defaultPrevented);await type(f,'d');assert.equal(f.mode,'text');assert.match(f.getValue('plain-text'),/for all.*V we measured/i);
   f.pageHistory.undo();f.pageHistory.redo();assert.equal(f.mode,'text');f.pageHistory.dispose();f.parentElement.remove();
  }
  const prose=scratch();await type(prose,'for all values we measured');assert.match(prose.value,/\\forall/);assert(backspace(prose).defaultPrevented);await type(prose,'d');assert.equal(prose.getValue('plain-text'),'for all values we measured');assert(!prose.value.includes('\\forall'));prose.parentElement.remove();
@@ -549,8 +549,8 @@ test('qualified quantifiers share notation for typing, paste, dictation and spli
    else if(method==='dictation')f._mathfield.onInput(input);
    else{f._mathfield.onInput(input.slice(0,-1));await settle();await type(f,input.slice(-1));}
    await settle();assert.match(f.value,/\\forall/);assert.match(f.value,new RegExp(input.split(' ')[2]));assert.equal(f.mode,'math',method+': '+f.value);assert.equal(f.errors.length,0);
-   if(expected===undefined)expected=f.value;else assert.equal(f.value,expected,method);
-   await type(f,' we observed');await settle();assert.match(f.value,/\\forall/);assert(backspace(f).defaultPrevented);await type(f,'d');assert.equal(f.getValue('plain-text'),input+' we observed');
+   if(expected===undefined)expected=f.value;else assert.equal(f.value.toLowerCase(),expected.toLowerCase(),method);
+   await type(f,' we observed');await settle();assert.match(f.value,/\\forall/);assert(backspace(f).defaultPrevented);await type(f,'d');assert.equal(f.getValue('plain-text').toLowerCase(),(input+' we observed').toLowerCase());
    f.pageHistory.dispose();f.parentElement.remove();
   }
  }
@@ -839,7 +839,7 @@ test('dictation input recovers buffer-only text and paste input without a Clipbo
  for(const mode of ['auto','math','text'])for(const kind of ['insertReplacementText','insertText','insertFromPaste']){
   const f=scratch();f.pageInputMode=mode;f.resetProseInput();f.mode=mode==='text'?'text':'math';installPageHistory(f);
   const sink=f.shadowRoot.querySelector('[part=keyboard-sink]');
-  assert.equal(sink.getAttribute('aria-multiline'),'true');assert.equal(sink.getAttribute('inputmode'),'text');
+  assert.equal(sink.getAttribute('aria-multiline'),'true');assert.equal(sink.getAttribute('inputmode'),'text');assert.equal(sink.getAttribute('autocapitalize'),'off');
   const source='x is less than 2';sink.textContent=source;
   const event=new InputEvent('input',{inputType:kind,data:kind==='insertFromPaste'?source:null,bubbles:true,composed:true,cancelable:true});sink.dispatchEvent(event);await settle();
   assert(event.defaultPrevented);assert.equal(sink.textContent,'');assert.equal(f.errors.length,0);
@@ -978,5 +978,252 @@ test('native Backspace preserves the Auto rejection rule and ordinary Math-mode 
    sink.dispatchEvent(new InputEvent('input',{inputType:'insertText',data:'3',bubbles:true,composed:true}));await settle();assert.equal(f.getValue('plain-text'),'x is less than 23');assert(f.isProseLine());
   }else{assert.equal(f.value,'x<2');}
   f.pageHistory.dispose();f.parentElement.remove();
+ }
+});
+test('typing compound signs replaces provisional or notation once the full phrase arrives',async()=>{
+ for(const mode of ['auto','math'])for(const [phrase,command] of [['plus or minus','\\pm'],['plus minus','\\pm'],['minus or plus','\\mp']])for(const prefix of ['','x ']){
+  const f=scratch();f.pageInputMode=mode;f.resetProseInput();f.mode='math';
+  const sink=f.shadowRoot.querySelector('[part=keyboard-sink]');
+  let typed='';
+  for(const key of prefix+phrase+' '){
+   const event=new KeyboardEvent('keydown',{key,bubbles:true,composed:true,cancelable:true});sink.dispatchEvent(event);
+   if(!event.defaultPrevented)f._mathfield.onInput(key);
+   await new Promise(resolve=>setTimeout(resolve,1));
+   typed+=key;
+   if(typed.endsWith(' or '))assert(/\\(?:vee|lor)/.test(f.value),f.value);
+  }
+  await settle();assert(f.value.includes(command),f.value);assert(!/plus|minus|\\(?:vee|lor)/.test(f.value));assert.equal(f.errors.length,0);
+  f.parentElement.remove();
+ }
+});
+test('nested spoken fractions agree across native paste and completed dictation with one-step history',async()=>{
+ for(const mode of ['auto','math','text'])for(const method of ['paste','dictation']){
+  const f=scratch();f.pageInputMode=mode;f.resetProseInput();f.mode=mode==='text'?'text':'math';installPageHistory(f);
+  const source='Minus q plus or minus the square root of q squared minus 5uv over 3u.'.replaceAll(' ','\u00a0');
+  if(method==='paste')nativePaste(f,source);
+  else f.shadowRoot.querySelector('[part=keyboard-sink]').dispatchEvent(new InputEvent('input',{inputType:'insertReplacementText',data:source,bubbles:true,composed:true}));
+  await settle();assert.equal(f.errors.length,0);
+  if(mode==='text')assert(!f.value.includes('\\sqrt'));
+  else{assert.match(f.value,/\\frac\{-q\\pm\\sqrt\{q\^\{?2\}?-\s*5\s*u\s*v\}\}\{3\s*u\}/);assert(!f.value.includes('plus'));}
+  const normalized=value=>value.replace(/\s/g,'').replace(/\^\{2\}/g,'^2');const value=normalized(f.value);f.pageHistory.undo();assert.equal(f.value,'');f.pageHistory.redo();assert.equal(normalized(f.value),value);
+  f.pageHistory.dispose();f.parentElement.remove();
+ }
+});
+test('relative comparisons agree across native paste, completed dictation and incremental typing',async()=>{
+ for(const mode of ['auto','math'])for(const method of ['paste','dictation','typing','continuation']){
+  const f=scratch();f.pageInputMode=mode;f.resetProseInput();f.mode='math';installPageHistory(f);
+  const sink=f.shadowRoot.querySelector('[part=keyboard-sink]'),sentence='4 is less than t, which is less than 11.';
+  if(method==='paste')nativePaste(f,sentence.replaceAll(' ','\u00a0'));
+  else if(method==='dictation')sink.dispatchEvent(new InputEvent('input',{inputType:'insertReplacementText',data:sentence.replaceAll(' ','\u202f'),bubbles:true,composed:true}));
+  else{
+   let input=sentence;if(method==='continuation'){const split=sentence.lastIndexOf('11');nativePaste(f,sentence.slice(0,split));await settle();input=sentence.slice(split);}
+   for(const key of input){const event=new KeyboardEvent('keydown',{key,bubbles:true,composed:true,cancelable:true});sink.dispatchEvent(event);if(!event.defaultPrevented)f._mathfield.onInput(key);await new Promise(resolve=>setTimeout(resolve,1));}
+  }
+  await settle();assert.match(f.value,/4<t<11/);assert(!f.value.includes('which'));assert(!f.value.includes('less than'));
+  if(['paste','dictation'].includes(method)){const value=f.value;f.pageHistory.undo();assert.equal(f.value,'');f.pageHistory.redo();assert.equal(f.value,value);}
+  f.pageHistory.dispose();f.parentElement.remove();
+ }
+});
+
+test('all 100 common formulas enter the editable page through native paste and completed dictation',async()=>{
+ const {commonFormulas}=await import('./fixtures/common-formulas.mjs');
+ const {convertLatexToMathMl}=await import('mathlive/ssr');
+ const structure=latex=>convertLatexToMathMl(latex).replace(/<\/?mrow>/g,'').replace(/<mo>(?:&#829[0-2];|[⁡⁢⁣])<\/mo>/g,'').replace(/<mspace[^>]*\/>/g,'');
+ let checked=0;
+ for(const mode of ['auto','math'])for(const method of ['paste','dictation'])for(const c of commonFormulas){
+  const f=scratch();f.pageInputMode=mode;f.resetProseInput();f.mode='math';installPageHistory(f);
+  try{
+   const input=c.input.replaceAll(' ',method==='paste'?'\u00a0':'\u202f');
+   if(method==='paste')nativePaste(f,input);
+   else f.shadowRoot.querySelector('[part=keyboard-sink]').dispatchEvent(new InputEvent('input',{inputType:'insertReplacementText',data:input,bubbles:true,composed:true}));
+   await settle();const label=`${c.id} ${c.name}: ${mode}/${method}`;
+   assert.equal(f.errors.length,0,label);assert.equal(structure(f.value),structure(c.expected),label);
+   assert.equal(f._mathfield.isSelectionEditable,true,label);
+   f.pageHistory.undo();assert.equal(f.value,'',label+' Undo');f.pageHistory.redo();assert.equal(structure(f.value),structure(c.expected),label+' Redo');
+   checked++;
+  }finally{f.pageHistory.dispose();f.parentElement.remove();}
+ }
+ assert.equal(checked,400);
+});
+
+test('compact symbolic equations render variable atoms in math mode after paste and dictation',async()=>{
+ for(const mode of ['auto','math'])for(const method of ['paste','dictation']){
+  const f=scratch();f.pageInputMode=mode;f.resetProseInput();installPageHistory(f);
+  try{
+   const source='F = -kx.';
+   if(method==='paste')nativePaste(f,source);
+   else f.shadowRoot.querySelector('[part=keyboard-sink]').dispatchEvent(new InputEvent('input',{inputType:'insertReplacementText',data:source,bubbles:true,composed:true}));
+   await settle();assert(!/\\text\{F/.test(f.value),f.value);
+   for(const letter of ['f','k','x']){
+    const atom=Array.from({length:f.lastOffset+1},(_,i)=>f._mathfield.model.at(i)).find(atom=>atom?.value===letter);
+    assert(atom,letter);assert.equal(atom.mode,'math',letter);assert(!atom.style?.fontFamily||atom.style.fontFamily==='auto',JSON.stringify(atom.style));
+   }
+   const value=f.value;f.pageHistory.undo();assert.equal(f.value,'');f.pageHistory.redo();assert.equal(f.value,value);
+  }finally{f.pageHistory.dispose();f.parentElement.remove();}
+ }
+});
+
+test('conversion uses equation typography independently of inherited prose fonts',async()=>{
+ for(const mode of ['auto','math'])for(const fontFamily of ['sans-serif','monospace','roman'])for(const method of ['paste','dictation','phrase']){
+  const f=exponentScratch(method==='phrase'?'':'\\text{Note: }');f.pageInputMode=mode;f.resetProseInput();f.position=-1;
+  applyFormatting(f,{fontFamily,fontShape:'n',fontSize:6,color:'#315b42'});installPageHistory(f);
+  const before=f.value;
+  try{
+   if(method==='paste')nativePaste(f,'p equals q plus r');
+   else if(method==='dictation')f._mathfield.onInput('p equals q plus r');
+   else await type(f,'for all x');
+   await settle();assert.equal(f.errors.length,0);
+   const math=Array.from({length:f.lastOffset+1},(_,i)=>f._mathfield.model.at(i)).filter(atom=>atom?.mode==='math'&&['p','q','r','x','∀'].includes(atom.value));
+   assert(math.length,`${mode}/${fontFamily}/${method}: ${f.value}`);
+   for(const atom of math){assert(!atom.style?.fontFamily||atom.style.fontFamily==='none',JSON.stringify(atom.style));assert(!atom.style?.fontShape||atom.style.fontShape==='auto',JSON.stringify(atom.style));if(method!=='phrase'){assert.equal(atom.style.color,'#315b42');assert.equal(atom.style.fontSize,6);}}
+   if(method!=='phrase')assert(f.value.includes('Note: '));
+   if(method!=='phrase'){const value=f.value;f.pageHistory.undo();assert.equal(f.value,before);f.pageHistory.redo();assert.equal(f.value,value);}
+  }finally{f.pageHistory.dispose();f.parentElement.remove();}
+ }
+});
+
+test('live spoken division opens an editable denominator and agrees with completed input',async()=>{
+ for(const mode of ['auto','math'])for(const operator of ['over','divided by','all over'])for(const method of ['keyboard','delegate','paste','dictation','continuation']){
+  const f=scratch();f.pageInputMode=mode;f.resetProseInput();f.mode='math';installPageHistory(f);
+  const sink=f.shadowRoot.querySelector('[part=keyboard-sink]');
+  const enter=async text=>{for(const key of text){
+   if(method!=='delegate'){const event=new KeyboardEvent('keydown',{key,bubbles:true,composed:true,cancelable:true});sink.dispatchEvent(event);if(!event.defaultPrevented)f._mathfield.onInput(key);}
+   else f._mathfield.onInput(key);
+   await new Promise(resolve=>setTimeout(resolve,1));
+  }};
+  try{
+   const prefix=`E = P ${operator} `,source=prefix+'t';
+   if(method==='paste')nativePaste(f,source);
+   else if(method==='dictation')f._mathfield.onInput(source);
+   else{
+    if(method==='continuation')nativePaste(f,prefix);else await enter(prefix);
+    await settle();assert(f.value.includes('\\frac'),f.value);assert(f.value.includes('\\placeholder'),f.value);
+    await enter('t');
+   }
+   await settle();assert.match(f.value,['paste','dictation','continuation'].includes(method)?/e=\\frac\{p\}\{t\}/:/E=\\frac\{P\}\{t\}/,`${mode}/${operator}/${method}`);assert.equal(f.errors.length,0);
+   const atom=Array.from({length:f.lastOffset+1},(_,i)=>f._mathfield.model.at(i)).find(atom=>atom?.value==='t');
+   assert.equal(atom?.parent?.type,'genfrac');assert.equal(atom.parentBranch,'below');assert.equal(atom.mode,'math');
+   if(['keyboard','delegate','continuation'].includes(method)){
+    await enter('2');assert.match(f.value,/\\frac\{[Pp]\}\{t_(?:2|\{2\})\}/);
+   }
+   const value=f.value;f.pageHistory.undo();assert.notEqual(f.value,value);f.pageHistory.redo();assert.equal(f.value,value);
+  }finally{f.pageHistory.dispose();f.parentElement.remove();}
+ }
+});
+
+test('variable-number indices agree across typing, paste and dictation without swallowing the next factor',async()=>{
+ for(const mode of ['auto','math'])for(const method of ['keyboard','delegate','paste','dictation']){
+  const f=scratch();f.pageInputMode=mode;f.resetProseInput();f.mode='math';installPageHistory(f);
+  try{
+   const source='m12 m2 + 2m',sink=f.shadowRoot.querySelector('[part=keyboard-sink]');
+   if(method==='paste')nativePaste(f,source);
+   else if(method==='dictation')f._mathfield.onInput(source);
+   else for(const key of source){
+    if(method==='keyboard'){const event=new KeyboardEvent('keydown',{key,bubbles:true,composed:true,cancelable:true});sink.dispatchEvent(event);if(!event.defaultPrevented)f._mathfield.onInput(key);}
+    else f._mathfield.onInput(key);
+    await new Promise(resolve=>setTimeout(resolve,1));
+   }
+   await settle();const compact=f.value.replace(/\\text\{\s*\}|\\ /g,'');
+   assert.match(compact,/m_\{12\}m_(?:2|\{2\})\+2m/,`${mode}/${method}: ${f.value}`);assert.equal(f.errors.length,0);
+   const value=f.value;f.pageHistory.undo();assert.notEqual(f.value,value);f.pageHistory.redo();assert.equal(f.value,value);
+  }finally{f.pageHistory.dispose();f.parentElement.remove();}
+ }
+ const text=scratch();text.pageInputMode='text';text.mode='text';text._mathfield.onInput('m1 m2');await settle();assert(!text.value.includes('_'));text.parentElement.remove();
+});
+
+test('change prefixes compose with fraction editing across typed, pasted and dictated input',async()=>{
+ for(const mode of ['auto','math'])for(const phrase of ['change in','change of'])for(const method of ['keyboard','paste','dictation','continuation']){
+  const f=scratch();f.pageInputMode=mode;f.resetProseInput();f.mode='math';installPageHistory(f);
+  const sink=f.shadowRoot.querySelector('[part=keyboard-sink]');
+  const enter=async text=>{for(const key of text){const event=new KeyboardEvent('keydown',{key,bubbles:true,composed:true,cancelable:true});sink.dispatchEvent(event);if(!event.defaultPrevented)f._mathfield.onInput(key);await new Promise(resolve=>setTimeout(resolve,1));}};
+  try{
+   const source=`V = ${phrase} D over ${phrase} T.`;
+   if(method==='paste')nativePaste(f,source.replaceAll(' ','\u00a0'));
+   else if(method==='dictation')f._mathfield.onInput(source);
+   else if(method==='continuation'){nativePaste(f,`${phrase} `);await settle();assert(f.value.includes('\\placeholder'));await enter('D');}
+   else await enter(source.slice(0,-1));
+   await settle();const value=f.value.replace(/\\text\{\s*\}|\\ /g,' ');
+   if(method==='continuation'){assert.match(value,/\\Delta D/);assert(!value.includes('\\placeholder'));}
+   else assert.match(value,method==='keyboard'?/V=\\frac\{\\Delta\s*D\}\{\\Delta\s*T\}/:/v=\\frac\{\\Delta\s*d\}\{\\Delta\s*t\}/,`${mode}/${phrase}/${method}: ${value}`);
+   assert.equal(f.errors.length,0);assert(!/change/.test(f.value));
+   const saved=f.value;f.pageHistory.undo();assert.notEqual(f.value,saved);f.pageHistory.redo();assert.equal(f.value,saved);
+  }finally{f.pageHistory.dispose();f.parentElement.remove();}
+ }
+});
+
+test('paste and completed dictation lowercase math variables while explicit case and prose survive',async()=>{
+ for(const mode of ['auto','math'])for(const method of ['paste','dictation']){
+  const f=scratch();f.pageInputMode=mode;f.resetProseInput();f.mode='math';installPageHistory(f);
+  try{
+   const source='X squared plus capital Y equals Z1';
+   if(method==='paste')nativePaste(f,source);else f._mathfield.onInput(source);
+   await settle();assert.match(f.value,/x\^\{?2\}?\+Y=z_\{?1\}?/);assert.equal(f.errors.length,0);
+   const saved=f.value;f.pageHistory.undo();assert.equal(f.value,'');f.pageHistory.redo();assert.equal(f.value,saved);
+  }finally{f.pageHistory.dispose();f.parentElement.remove();}
+ }
+});
+
+test('vector prefixes compose with change and division across live typing, paste and dictation',async()=>{
+ for(const mode of ['auto','math'])for(const method of ['keyboard','paste','dictation']){
+  const f=scratch();f.pageInputMode=mode;f.resetProseInput();f.mode='math';installPageHistory(f);
+  const source='Vector v equals change in vector d over change in vector t';
+  try{
+   if(method==='paste')nativePaste(f,source+'.');
+   else if(method==='dictation')f._mathfield.onInput(source+'.');
+   else{const sink=f.shadowRoot.querySelector('[part=keyboard-sink]');for(const key of source){const event=new KeyboardEvent('keydown',{key,bubbles:true,composed:true,cancelable:true});sink.dispatchEvent(event);if(!event.defaultPrevented)f._mathfield.onInput(key);await new Promise(resolve=>setTimeout(resolve,1));}}
+   await settle();assert.equal(f.errors.length,0);assert.match(f.value,/\\vec\{v\}=\\frac\{\\Delta\s*\\vec\{d\}\}\{\\Delta\s*\\vec\{t\}\}/,`${mode}/${method}: ${f.value}`);
+   const saved=f.value;f.pageHistory.undo();assert.notEqual(f.value,saved);f.pageHistory.redo();assert.equal(f.value,saved);
+  }finally{f.pageHistory.dispose();f.parentElement.remove();}
+ }
+});
+
+test('delta defaults agree across live typing, paste and dictation with explicit lowercase override',async()=>{
+ for(const mode of ['auto','math'])for(const method of ['keyboard','paste','dictation'])for(const [source,command]of [['delta','\\Delta'],['lowercase delta','\\delta']]){
+  const f=scratch();f.pageInputMode=mode;f.resetProseInput();f.mode='math';installPageHistory(f);
+  try{
+   if(method==='paste')nativePaste(f,source);
+   else if(method==='dictation')f._mathfield.onInput(source);
+   else{const sink=f.shadowRoot.querySelector('[part=keyboard-sink]');for(const key of source+' '){const event=new KeyboardEvent('keydown',{key,bubbles:true,composed:true,cancelable:true});sink.dispatchEvent(event);if(!event.defaultPrevented)f._mathfield.onInput(key);await new Promise(resolve=>setTimeout(resolve,1));}}
+   await settle();assert.equal(f.errors.length,0);assert(f.value.includes(command),`${mode}/${method}/${source}: ${f.value}`);
+   const saved=f.value;f.pageHistory.undo();assert.notEqual(f.value,saved);f.pageHistory.redo();assert.equal(f.value,saved);
+  }finally{f.pageHistory.dispose();f.parentElement.remove();}
+ }
+});
+
+test('spoken bracket separates a fractional coefficient from its grouped product on paste and dictation',async()=>{
+ const {convertLatexToMathMl}=await import('mathlive/ssr');
+ for(const mode of ['auto','math'])for(const method of ['paste','dictation']){
+  const f=scratch();f.pageInputMode=mode;f.resetProseInput();f.mode='math';installPageHistory(f);
+  try{
+   const source='Capital V equals 1 over 3 bracket pi r cubed'.replaceAll(' ','\u00a0');
+   if(method==='paste')nativePaste(f,source);else f._mathfield.onInput(source);
+   await settle();assert.equal(f.errors.length,0);assert.match(f.value,/V=\\frac\{1\}\{3\}\\left\(\\pi\s*r\^\{?3\}?\\right\)/,`${mode}/${method}: ${f.value}`);
+   const saved=f.value;f.pageHistory.undo();assert.equal(f.value,'');f.pageHistory.redo();assert.equal(convertLatexToMathMl(f.value),convertLatexToMathMl(saved));
+  }finally{f.pageHistory.dispose();f.parentElement.remove();}
+ }
+});
+
+test('subscript aliases compose with Greek vector accents and fractions on paste and dictation',async()=>{
+ const {convertLatexToMathMl}=await import('mathlive/ssr');
+ for(const mode of ['auto','math'])for(const method of ['paste','dictation'])for(const alias of ['sub','subscript']){
+  const f=scratch();f.pageInputMode=mode;f.resetProseInput();f.mode='math';installPageHistory(f);
+  try{
+   const source=`Vector epsilon equals vector F ${alias} e over q.`.replaceAll(' ','\u00a0');
+   if(method==='paste')nativePaste(f,source);else f._mathfield.onInput(source);
+   await settle();assert.equal(f.errors.length,0);assert.match(f.value,/\\vec\{\\epsilon\}=\\frac\{\\vec\{f_\{?e\}?\}\}\{q\}/,`${mode}/${method}/${alias}: ${f.value}`);assert(!f.value.includes('sub'));
+   const saved=f.value;f.pageHistory.undo();assert.equal(f.value,'');f.pageHistory.redo();assert.equal(convertLatexToMathMl(f.value),convertLatexToMathMl(saved));
+  }finally{f.pageHistory.dispose();f.parentElement.remove();}
+ }
+});
+
+test('dictation pause commas do not block pasted or dictated vector equations',async()=>{
+ for(const mode of ['auto','math'])for(const method of ['paste','dictation']){
+  const f=scratch();f.pageInputMode=mode;f.resetProseInput();f.mode='math';installPageHistory(f);
+  try{
+   const source='Vector, epsilon, equals, vector, capital, F, sub, e, over, q.';
+   if(method==='paste')nativePaste(f,source);else f._mathfield.onInput(source);
+   await settle();assert.equal(f.errors.length,0);assert.match(f.value,/\\vec\{\\epsilon\}=\\frac\{\\vec\{F_\{?e\}?\}\}\{q\}/,f.value);assert(!f.value.includes('sub'));
+   const saved=f.value;f.pageHistory.undo();assert.equal(f.value,'');f.pageHistory.redo();assert.equal(f.value,saved);
+  }finally{f.pageHistory.dispose();f.parentElement.remove();}
  }
 });

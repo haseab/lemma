@@ -10,6 +10,7 @@ export const pastedMathCases=[
  ['x subscript eleven plus y subscript two','x_{11}+y_{2}'],['p to the fourth equals q','p^{4}=q'],
  ['two hundred thirty four plus six','234+6'],['2x + 3y = 17','2x+3y=17']]),
  ...math('development','structures',[
+ ['x to the power of n plus one','x^{n}+1'],['one over x plus two','\\frac{1}{x}+2'],['square root of x plus y','\\sqrt{x+y}'],
  ['square root of twenty five','\\sqrt{25}'],['cube root of eight','\\sqrt[3]{8}'],
  ['square root of open parenthesis x plus seven close parenthesis','\\sqrt{\\left(x+7\\right)}'],
  ['open parenthesis a plus b close parenthesis squared','\\left(a+b\\right)^{2}'],
@@ -33,13 +34,14 @@ export const pastedMathCases=[
  'This is in my notebook.','At most seven people arrived.','I am here.','We go on.','The two times we tried were useful.',
  'The power of a good idea is clear.','The sum of our efforts mattered.','A fraction of the audience left.','There is no greater than usual demand.',
  'I like apple pie.','We say sine when discussing notation.','The element of surprise matters.','The vector of change is unclear.',
- 'one over x plus two','square root of x plus y','x to the power of n plus one','x plus','start fraction x over y',
+ 'x plus','start fraction x over y',
  'The code uses foo_bar as a name.','The cat is in the box.'
  ]),
  ...math('holdout','arithmetic',[
  ['r squared plus nineteen equals forty four','r^{2}+19=44'],['t to the power of fifteen','t^{15}'],['negative twelve times six','-12\\times6'],
  ['two point seven plus one point three equals four','2.7+1.3=4'],['a subscript twenty one equals b','a_{21}=b']]),
  ...math('holdout','structures',[
+ ['three over z minus one','\\frac{3}{z}-1'],['cube root of a plus b','\\sqrt[3]{a+b}'],
  ['start fraction p minus q over r plus s end fraction','\\frac{p-q}{r+s}'],['cube root of twenty seven','\\sqrt[3]{27}'],
  ['open parenthesis m minus n close parenthesis cubed','\\left(m-n\\right)^{3}'],['sine of phi equals one','\\sin\\left(\\phi\\right)=1'],
  ['h of t equals t cubed','h\\left(t\\right)=t^{3}']]),
@@ -48,6 +50,6 @@ export const pastedMathCases=[
  ['We know r is at least twenty.','\\text{We know }r\\ge20\\text{.}']]),
  ...prose('holdout',[
  'It is in the folder.','At least twenty guests came.','The root of the problem is unclear.','We need a matrix of responsibilities.',
- 'The product of our work is ready.','I am at home.','three over z minus one','cube root of a plus b','y equals','open parenthesis x plus two'
+ 'The product of our work is ready.','I am at home.','y equals','open parenthesis x plus two'
  ])
 ];

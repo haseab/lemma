@@ -14,8 +14,10 @@ export const NOTATION_GROUPS=[
   ['real numbers','\\mathbb{R}'],['natural numbers','\\mathbb{N}'],['integers','\\mathbb{Z}'],['rational numbers','\\mathbb{Q}'],['complex numbers','\\mathbb{C}'],
   ['not equal','\\ne'],['less than or equal','\\le'],['greater than or equal','\\ge'],['approximately','\\approx'],['isomorphic to','\\cong']]),
  group('calculus','Calculus & functions','sin cos tan sec csc cot sinh cosh tanh arcsin arccos arctan log ln exp lim max min sup inf arg sqrt frac int sum prod','',[
+  ['plus or minus','\\pm'],['plus minus','\\pm'],['minus or plus','\\mp'],
+  ['change in','\\Delta'],['change of','\\Delta'],
   ['integral','\\int'],['sum','\\sum'],['product','\\prod'],['infinity','\\infty'],['partial','\\partial'],['nabla','\\nabla']]),
- group('linear','Linear algebra','det ker dim rank trace','rank trace diag span GL SL',[
+ group('linear','Linear algebra','det ker dim rank trace vector','rank trace diag span GL SL',[
   ['tensor product','\\otimes'],['direct sum','\\oplus'],['dot product','\\cdot'],['cross product','\\times']]),
  group('algebra','Algebra & categories','hom','Hom End Aut Obj Ob Mor Fun Nat Cat Set Grp Ring Vect Top Spec Tor Ext colim coker coim im id dom cod',[
   ['maps to','\\mapsto'],['right arrow','\\to'],['left arrow','\\leftarrow'],['adjoint to','\\dashv'],['compose','\\circ']]),
@@ -23,7 +25,8 @@ export const NOTATION_GROUPS=[
   ['independent of','\\perp']]),
  group('number','Number theory','gcd lcm mod deg','ord char'),
  group('greek','Greek letters','alpha beta gamma delta epsilon theta lambda sigma omega pi','',[
-  ...'alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu nu xi pi rho sigma tau upsilon phi chi psi omega'.split(' ').map(name=>[name,'\\'+name])])
+  ...'alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu nu xi pi rho sigma tau upsilon phi chi psi omega'.split(' ').map(name=>[name,'\\'+(name==='delta'?'Delta':name)]),
+  ['lowercase delta','\\delta'],['uppercase delta','\\Delta'],['capital delta','\\Delta']])
 ];
 // Conventional readings of relations, rather than unconstrained English synonyms.
 // These are only automatic after a mathematical operand, never bare prose.
