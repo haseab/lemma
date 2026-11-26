@@ -1,3 +1,5 @@
+import {quantifiedInput} from './plain-input.js';
+import {tokenizeMath} from './spoken-math.js';
 import {loadDictionaries,validateDictionaries,dictionaryPhrases,validDictionaryPhrase} from './custom-dictionary.js';
 import {MATH_WORDS,namedOperator,vocabulary,phraseAtEnd,symbolPhrase,loadNotationGroups,hasPendingPhrase,normalizeGroups,shortcutEnabled} from './math-words.js';
 import {insertPageBreak} from './editing.js';
@@ -50,6 +52,9 @@ function connectedRun(field,whole=false){
  const styleOf=atom=>Object.fromEntries(['color','backgroundColor','fontSize','fontSeries','fontShape','fontFamily'].filter(key=>atom?.style?.[key]!==undefined).map(key=>[key,atom.style[key]]));
  const read=(offset,backward)=>{
   const atom=model?.at(backward?offset:offset+1);
+  // Explicit math spaces serialize as control spaces and render as NBSP.
+  // Match phrases across them exactly as across ordinary typed spaces.
+  if(atom?.type==='space'&&['\\ ','\\space'].includes(atom.command)){const begin=backward?offset-1:offset;return {start:begin,end:begin+1,text:' ',math:true,styles:[styleOf(atom)]};}
   // A literal multiplication sign is also a dimension separator in 3×3.
   // Preserve the character rather than reading it as the phrase 'cross product'.
   if(atom?.value==='×'&&!phraseSources.has(atom)&&!atom.hasChildren){const begin=backward?offset-1:offset;return {start:begin,end:begin+1,text:'×',math:atom.mode!=='text',styles:[styleOf(atom)]};}
@@ -82,6 +87,16 @@ function connectedRun(field,whole=false){
  // math such as fractions, scripts, explicit inline groups, or row boundaries.
  while(start>0&&end-start<4096){const unit=read(start,true);if(!unit)break;units.unshift(unit);start=unit.start;}
  while(whole&&end<field.lastOffset&&end-start<4096){const unit=read(end,false);if(!unit)break;units.push(unit);end=unit.end;}
+ // Serialized math normally omits spaces between symbols and identifiers.
+ // Supply word boundaries when reading multiword notation back as language;
+ // keep the padding in its unit so styles and cursor mapping remain aligned.
+ for(let i=0;i<units.length;i++){
+  const unit=units[i],previous=units[i-1],next=units[i+1];
+  const prepend=unit.notation&&unit.text.includes(' ')&&/[A-Za-z0-9]$/.test(previous?.text||'')&&/^[A-Za-z]/.test(unit.text);
+  const append=(unit.notation&&unit.text.includes(' ')&&/[A-Za-z]$/.test(unit.text)||unit.math&&unit.text===',')&&/^[A-Za-z0-9]/.test(next?.text||'');
+  if(prepend){unit.text=' '+unit.text;unit.styles.unshift(unit.styles[0]||{});}
+  if(append){unit.text+=' ';unit.styles.push(unit.styles.at(-1)||{});}
+ }
  for(const unit of units){text+=unit.text;if(unit.math)hasMath=true;else hasText=true;}
 
  return {start,end,text,units,classificationText:units.map((unit,index)=>unit.notation&&(!unit.wordlike||!/[A-Za-z]$/.test(units[index-1]?.text||'')&&!/^[A-Za-z]/.test(units[index+1]?.text||''))?' ':unit.text).join(''),hasMath,hasText,styles:units.flatMap(unit=>unit.styles),cursor:units.filter(u=>u.end<=caret).reduce((n,u)=>n+u.text.length,0)};
@@ -102,6 +117,9 @@ function phraseHasContext(field,run,phrase){
  if(!phrase?.context)return true;
  const text=run.text.trimEnd(),left=text.slice(0,-phrase.text.length).trim();
  if(left){
+  // A leading quantifier establishes mathematical context even when its
+  // bound objects have an ordinary-language label.
+  if(quantifiedInput(left,{groups:field.notationGroups,libraries:field.customDictionaries,shortcuts:field.getNotationShortcuts?.()}))return true;
   if(looksLikeProse(left+' ',field.notationGroups,field.customDictionaries))return false;
   const words=left.match(/[A-Za-z]+/g)||[];
   return words.every(word=>!SHORT_WORDS.has(word.toLowerCase())&&word!=='I')&&
@@ -114,7 +132,7 @@ function phraseHasContext(field,run,phrase){
 }
 
 export function installProseInput(field){
- let converting=false,explicitMath=false,mathStart=0,pendingTemplateSpace=false;
+ let converting=false,explicitMath=false,mathStart=0,pendingTemplateSpace=false,lastQuantifiedAssessment=null;
  const sources=new Map();
  try{field.customDictionaries=loadDictionaries(field.ownerDocument.defaultView.localStorage);}catch{field.customDictionaries=[];}
  field.setCustomDictionaries=libraries=>{field.customDictionaries=validateDictionaries(libraries);};
@@ -128,28 +146,94 @@ export function installProseInput(field){
   sources.clear();
   for(const entry of entries||[]){
    const phrase=[...dictionaryPhrases(field.customDictionaries,true),...vocabulary().phrases].find(p=>p.text===entry.text&&p.latex===entry.latex)||
+    (entry.latex==='\\forall'&&/^for all values?$/.test(entry.text)?{text:entry.text,latex:entry.latex,context:false}:null)||
     (entry.custom&&validDictionaryPhrase(entry.text)?{text:entry.text,latex:entry.latex,custom:true,context:entry.context!==false}:null),atom=field._mathfield.model.at(entry.offset);
    const begin=atom?.hasChildren?field._mathfield.model.offsetOf(atom.firstChild)-1:entry.offset-1;
    const sourceMatches=entry.source&&field.getValue([begin,entry.offset],'latex')===entry.source;
    if(phrase&&atom&&(sourceMatches||atom.command===phrase.latex||atom.value===phrase.latex)){phraseSources.set(atom,phrase);sources.set(atom,phrase);}
   }
  };
+ field.noteQuantifiedSources=(source,start,end)=>{
+  const tokens=tokenizeMath(source,{groups:field.notationGroups,libraries:field.customDictionaries});
+  if(tokens[0]?.type!=='quantifier')return;
+  let offset=start+1;const caret=field.position,model=field._mathfield.model;
+  for(const token of tokens){
+   if(!['op','quantifier'].includes(token.type))continue;
+   const text=source.slice(token.start,token.end).toLowerCase();if(!/[A-Za-z]/.test(text))continue;
+   for(let i=offset;i<=end;i++){
+    const atom=model.at(i);
+    if(atom?.command===token.value||atom?.value===token.value){
+     field.position=i;field.notePhraseSource({text,latex:token.value,custom:!!token.custom,context:!!token.context});offset=i+1;break;
+    }
+   }
+  }
+  field.position=caret;
+ };
  const shortcuts={...field.inlineShortcuts};
  field.getNotationShortcuts=()=>({...shortcuts});
  const safeShortcuts=Object.fromEntries(Object.entries(shortcuts).filter(([key])=>!/[A-Za-z]/.test(key)));
- const updateShortcuts=()=>{field.inlineShortcuts=field.pageInputMode==='auto'&&!explicitMath?Object.fromEntries(Object.entries(safeShortcuts).filter(([,value])=>shortcutEnabled(value,field.notationGroups,field.customDictionaries))):shortcuts;};
+ const updateShortcuts=()=>{field.inlineShortcuts=Object.fromEntries(Object.entries(safeShortcuts).filter(([,value])=>shortcutEnabled(value,field.notationGroups,field.customDictionaries)));};
  field.setNotationGroups=groups=>{field.notationGroups=normalizeGroups(groups);updateShortcuts();};
  try{field.notationGroups=loadNotationGroups(field.ownerDocument.defaultView.localStorage);}catch{field.notationGroups=loadNotationGroups();}
  field.pageInputMode='auto';
  field.smartMode=false;
- field.resetProseInput=()=>{explicitMath=false;pendingTemplateSpace=false;updateShortcuts();};
+ field.resetProseInput=()=>{field.dismissAutomaticConversion?.();explicitMath=false;pendingTemplateSpace=false;updateShortcuts();};
  updateShortcuts();
+ field.reassessProseInput=()=>{
+  if(converting||field.proseSuspended||field.isProseLine?.()||!['auto','math'].includes(field.pageInputMode)||explicitMath||field.mode==='latex'||!field.selectionIsCollapsed)return false;
+  const run=connectedRun(field,true);
+  // Use the bulk-input grammar for a whole connected quantified statement.
+  // Only literal non-space text needs replacement; preserve existing math spaces.
+  const assessed=quantifiedInput(run.text,{groups:field.notationGroups,libraries:field.customDictionaries,shortcuts});
+  if(assessed)field._mathfield.model.mode='math';
+  if(assessed&&field.position===run.end){
+   const settings=JSON.stringify([field.pageInputMode,field.notationGroups,field.customDictionaries]);
+   if(lastQuantifiedAssessment?.latex===field.value&&lastQuantifiedAssessment.position===field.position&&lastQuantifiedAssessment.settings===settings)return false;
+   const style=run.styles[0]||{},uniform=run.styles.every(value=>JSON.stringify(value)===JSON.stringify(style));
+   if(uniform){
+    const latex=assessed.latex;
+    if(field.getValue([run.start,run.end],'latex')!==latex){
+     converting=true;field.proseConverting=true;
+     try{field.trackAutomaticConversion(run,()=>{
+      field.selection={ranges:[[run.start,run.end]]};
+      field.executeCommand(['insert',latex,{format:'latex',mode:'math',selectionMode:'after'}]);
+      const end=field.position;
+      field.noteQuantifiedSources(run.text,run.start,end);
+      const binder=run.text.trimStart().match(/^(for all values?)\s+[A-Za-z]\b/i);
+      if(binder){field.position=run.start+1;field.notePhraseSource({text:binder[1].toLowerCase(),latex:'\\forall',context:false});field.position=end;}
+      if(Object.keys(style).length){field.selection={ranges:[[run.start,end]]};field.applyStyle(style,{operation:'set'});field.position=end;}
+      field._mathfield.model.mode='math';
+     });}finally{converting=false;field.proseConverting=false;}
+     // MathLive canonicalizes equivalent LaTeX spellings on insertion. Do not
+     // rewrite that canonical result on the input event our own insert emits.
+     lastQuantifiedAssessment={latex:field.value,position:field.position,settings};
+     return true;
+    }
+   }
+  }
+  return false;
+ };
  field.addEventListener('input',event=>{
-  if(converting||field.proseSuspended||field.pageInputMode!=='auto'||explicitMath||field.mode==='latex'||!field.selectionIsCollapsed)return;
+  // A whitespace text atom must not switch a forced or explicit math run to prose.
+  if((field.pageInputMode==='math'||explicitMath)&&field.mode==='text')field._mathfield.model.mode='math';
+  if(converting||field.proseSuspended||field.isProseLine?.()||!['auto','math'].includes(field.pageInputMode)||field.mode==='latex'||!field.selectionIsCollapsed)return;
+  const forcedMath=field.pageInputMode==='math'||explicitMath;
   const deletion=/^delete/.test(event.inputType||'');
+  if(forcedMath&&deletion)return;
   if(event.inputType&&!deletion&&!['insertText','insertFromPaste'].includes(event.inputType))return;
   const run=connectedRun(field,deletion),match=phraseAtEnd(run.text.trimEnd(),field.notationGroups,false,field.customDictionaries);
-  const prose=looksLikeProse(run.classificationText,field.notationGroups,field.customDictionaries)||!!(match?.context&&!phraseHasContext(field,run,match));
+  const quantified=quantifiedInput(run.text,{groups:field.notationGroups,libraries:field.customDictionaries,shortcuts});
+  if(quantified&&!forcedMath){
+   if(!deletion&&field.reassessProseInput())return;
+   field._mathfield.model.mode='math';
+   if(!deletion)field.offerAutomaticRejection(run);
+   return;
+  }
+  const lastUnit=run.units.findLast(unit=>unit.text.trim());
+  const renderedMatch=!!match&&lastUnit?.notation&&lastUnit.text.trim()===match.text;
+  // Context checks decide whether literal words may become a relation. An
+  // already rendered relation stays math when its right operand is deleted.
+  const prose=!forcedMath&&(looksLikeProse(run.classificationText,field.notationGroups,field.customDictionaries)||!!(match?.context&&!renderedMatch&&!phraseHasContext(field,run,match)));
   const word=run.text.trimEnd().match(/[A-Za-z]+$/)?.[0],operator=word&&namedOperator(word,field.notationGroups,field.customDictionaries);
   const formatPhrase=(phrase)=>{
    if(!phraseHasContext(field,run,phrase))return false;
@@ -175,7 +259,7 @@ export function installProseInput(field){
   };
   if(!prose&&!deletion){
    converting=true;field.proseConverting=true;
-   try{if(!formatPhrase(phraseAtEnd(run.text,field.notationGroups,true,field.customDictionaries)))formatOperator();}finally{converting=false;field.proseConverting=false;}
+   try{field.trackAutomaticConversion(run,()=>{if(!formatPhrase(phraseAtEnd(run.text,field.notationGroups,true,field.customDictionaries)))formatOperator();});}finally{converting=false;field.proseConverting=false;}
    // A completed numeric trigger (e.g. tensor2) can finish after its letter
    // prefix was provisionally prose. Let the following boundary expand it.
    if(match&&field.selectionIsCollapsed)field._mathfield.model.mode='math';
@@ -229,29 +313,31 @@ export function installProseInput(field){
   }finally{converting=false;field.proseConverting=false;}
  });
  field.addEventListener('keydown',event=>{
-  if(field.pageInputMode!=='auto'||event.metaKey||event.ctrlKey||event.altKey||event.isComposing||field.mode==='latex')return;
+  if(!['auto','math'].includes(field.pageInputMode)||field.isProseLine?.()||event.metaKey||event.ctrlKey||event.altKey||event.isComposing||field.mode==='latex')return;
   if(pendingTemplateSpace){pendingTemplateSpace=false;if(event.key===' '){event.preventDefault();event.stopImmediatePropagation();return;}}
   // Alphabetic shortcuts must wait for a word boundary: "in" must not become
   // a membership symbol while someone is still typing "inline".
-  if(!explicitMath&&field.mode==='math'&&field.selectionIsCollapsed&&
+  if(field.mode==='math'&&field.selectionIsCollapsed&&
    (event.key==='Enter'||event.key.length===1&&!/[A-Za-z`]/.test(event.key))){
    const run=connectedRun(field),word=run.text.match(/[A-Za-z]+$/)?.[0];
    const match=phraseAtEnd(run.text,field.notationGroups,false,field.customDictionaries);
-   const phrase=!looksLikeProse(run.classificationText,field.notationGroups,field.customDictionaries)&&match&&phraseHasContext(field,run,match)&&(!hasPendingPhrase(run.text,field.notationGroups,field.customDictionaries)||match.text===run.text.trim().toLowerCase())&&match;
+   const phrase=(field.pageInputMode==='math'||explicitMath||!looksLikeProse(run.classificationText,field.notationGroups,field.customDictionaries))&&match&&phraseHasContext(field,run,match)&&(!hasPendingPhrase(run.text,field.notationGroups,field.customDictionaries)||match.text===run.text.trim().toLowerCase())&&match;
    const range=phrase&&phraseRange(run,phrase,field.position);
    if(range&&field.getValue([range.start,range.end],'latex')!==phrase.latex){
     converting=true;field.proseConverting=true;
-    try{field.selection={ranges:[[range.start,range.end]]};field.executeCommand(['insert',phrase.latex,{format:'latex',mode:'math',selectionMode:phrase.template?'placeholder':'after'}]);if(!phrase.template)field.notePhraseSource(phrase);}finally{converting=false;field.proseConverting=false;}
+    try{field.trackAutomaticConversion(run,()=>{field.selection={ranges:[[range.start,range.end]]};field.executeCommand(['insert',phrase.latex,{format:'latex',mode:'math',selectionMode:phrase.template?'placeholder':'after'}]);if(!phrase.template)field.notePhraseSource(phrase);});}finally{converting=false;field.proseConverting=false;}
     if(phrase.template&&event.key===' '){event.preventDefault();event.stopImmediatePropagation();return;}
    }
    const shortcut=!hasPendingPhrase(run.text,field.notationGroups,field.customDictionaries)&&word&&vocabulary(field.notationGroups,field.customDictionaries).words.has(word.toLowerCase())&&shortcuts[word];
    if(shortcut&&field.getValue([field.position-word.length,field.position],'plain-text')===word){
     const end=field.position;field.selection={ranges:[[end-word.length,end]]};
     const value=typeof shortcut==='string'?shortcut:shortcut.value,template=value.includes('#?');
-    field.executeCommand(['insert',value,{format:'latex',mode:'math',selectionMode:template?'placeholder':'after'}]);
+    field.trackAutomaticConversion(run,()=>field.executeCommand(['insert',value,{format:'latex',mode:'math',selectionMode:template?'placeholder':'after'}]));
     if(template&&event.key===' '){event.preventDefault();event.stopImmediatePropagation();return;}
    }
   }
+  // Forced Math uses the native space/Enter handlers and never switches to prose.
+  if(field.pageInputMode==='math')return;
   if(event.key==='`'){
    event.preventDefault();event.stopImmediatePropagation();
    if(explicitMath&&field.position>mathStart){

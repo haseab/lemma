@@ -2,6 +2,14 @@
 
 Recognition runs locally on completed text from the clipboard or the editor's keyboard-input delegate. It does not record audio, call a language model, collect input, or train from users' documents.
 
+## Local paste diagnostics
+
+Open the editor with `?pasteDebug=1` to display a collapsible event panel. It records up to 120 events: relative timings, event types, trust/cancellation/focus flags, character counts, whether the document changed, and whether an extra paste input was suppressed. It never records clipboard contents, document text, key values, or error messages. A native paste request without a following input event identifies a different failure from a completed conversion followed by another paste request. The report cannot identify the sending application or prove why it retried.
+
+For automatic capture, set `LEMMA_PASTE_REPORT_DIR` to a private absolute folder when running `scripts/serve-site.mjs`. The debug panel probes the same-origin development receiver and autosaves metadata after activity, using one JSON file per capture. The receiver validates every field, rejects text and cross-site writes, caps report size, and writes files atomically. Its destination comes only from server configuration and is never client-selectable. The panel shows whether autosave is enabled or failed; manual Save report remains available. Normal editor sessions do not contact the receiver. Production has no receiver. Without a development receiver, the report stays in memory until cleared, reloaded, or explicitly saved.
+
+Native paste readback is enabled by default in both renderers. The received text stays in the keyboard input long enough for a dictation client to check insertion. The receipt expires on editing, selection or caret changes, blur, history restoration, and programmatic content replacement. Buffer-only typing after a receipt inserts only the new suffix. Rejected insertions do not leave successful readback receipts. Automatic formatting preserves the receipt while settling equivalent LaTeX representations. The retained buffer is never included in diagnostic reports or notebook history. For diagnosis, `pasteReadback=0` disables retention without changing recognition; `pasteDebug=1` separately enables the metadata panel.
+
 ## Research
 
 [MathSpeech](https://arxiv.org/html/2412.15655v3) studies recordings from actual mathematics lectures and separates transcription correction from formula generation. Its examples show that recognized words alone can lose mathematical structure.
@@ -18,6 +26,8 @@ Recognition runs locally on completed text from the clipboard or the editor's ke
 4. Recognize complete expressions within prose only when they have sufficient grammatical evidence. Preserve surrounding wording and punctuation.
 5. Preserve the original text when structure is incomplete, unsupported, or ambiguous. Do not invent transcription repairs or infer unstated grouping. Explicit grouping can make an otherwise ambiguous expression convertible.
 6. Insert the result using the existing validated, single-transaction paste path. Recognition also considers the preceding canvas operand for dictated fragments.
+
+Leading quantifier phrases deliberately prefer notation in Auto mode. A phrase such as “for all people” keeps the quantifier symbol without requiring a variable or a complete predicate; unparsed wording remains readable alongside it. Unknown labels do not block recognized notation within the rest of the phrase. Typing, paste, and completed dictation use the same quantified-input assessment. Backspace rejects the automatic notation while deleting the last source character, and the line then stays prose even if that character is typed again. Enter starts a new Auto line. Explicit Text mode and disabled notation categories remain literal.
 
 Very long individual lines (over 16,000 characters) remain text rather than invoking automatic recognition. The existing total paste limit still applies. This keeps large prose documents bounded; shorter lines are assessed separately.
 

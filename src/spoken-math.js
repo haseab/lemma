@@ -36,6 +36,12 @@ export function tokenizeMath(source,{groups,libraries,shortcuts={}}={}){
  while(i<source.length){
   if(/\s/.test(source[i])){i++;continue;}
   const rest=source.slice(i),lower=rest.toLowerCase();
+  // A binder noun is grammatical only immediately after a quantifier.
+  const binder=tokens.at(-1)?.type==='quantifier'&&rest.match(/^([A-Za-z]{2,})\s+(?=[A-Za-z](?:\s|,|$))/);
+  if(binder&&!config.words.has(binder[1].toLowerCase())&&!config.phrases.some(p=>p.text===binder[1].toLowerCase())){
+   if(!/^values?$/i.test(binder[1]))tokens.at(-1).binder=binder[1];
+   i+=binder[0].length;continue;
+  }
   const number=rest.match(/^\d+(?:\.\d+)?/);if(number){put('atom',number[0],number[0].length,{number:true});continue;}
   const spokenNumber=numberAt(lower);if(spokenNumber){put('atom',spokenNumber.value,spokenNumber.text.length,{number:true});continue;}
   // User definitions win over grammatical shorthand as well as built-in words.
@@ -67,7 +73,7 @@ export function tokenizeMath(source,{groups,libraries,shortcuts={}}={}){
 function precedence(value){return ['+','-'].includes(value)?20:['/','\\times','\\cdot','\\otimes','\\circ'].includes(value)?30:10;}
 const node=(latex,evidence=0,extra={})=>({latex,evidence,...extra});
 // A small structural grammar, with explicit failure instead of speculative fixes.
-export function parseMath(tokens,start=0,{afterMath=false}={}){
+export function parseMath(tokens,start=0,{afterMath=false,allowIncompleteRelation=false}={}){
  let index=start,depth=0;const peek=()=>tokens[index],take=()=>tokens[index++];
  function atom(){
   if(++depth>64)throw Error('Math nesting limit');
@@ -94,7 +100,10 @@ export function parseMath(tokens,start=0,{afterMath=false}={}){
    const child=atom();
    result=node(token.type==='root'?`\\sqrt${token.value==='3'?'[3]':''}{${child.latex}}`:token.type==='absolute'?`\\left|${child.latex}\\right|`:`${token.value}${child.grouped?child.latex:`\\left(${child.latex}\\right)`}`,2,{scope:!child.grouped,grouped:child.grouped});
   }else if(token.type==='quantifier'){
-   const child=expression(0);result=node(token.value+' '+child.latex,child.evidence+2);
+   // A named domain binds one explicit variable; a following word is prose,
+   // rather than an implicit product of the binder and its first letter.
+   if(token.binder&&['atom','function','open'].includes(tokens[index+1]?.type))throw Error('Expected a predicate after the binding');
+   const child=expression(0);result=node(token.value+' '+(token.binder?`\\text{${token.binder} }`:'')+child.latex,child.evidence+2);
    // A comma separates quantified variables from their mathematical predicate.
    // Keep this local to quantifiers so ordinary prose commas do not imply math.
    while(peek()?.type==='punctuation'&&peek().value===','){
@@ -125,7 +134,13 @@ export function parseMath(tokens,start=0,{afterMath=false}={}){
     // A spoken root, division, or exponent followed by an ungrouped sum is
     // structurally ambiguous. Preserve its original text instead of choosing.
     if(left.scope&&rank>=20)throw Error('Ambiguous scope');
-    take();const right=expression(rank+1,stops);
+    take();
+    // An explicitly quantified scratchpad statement may end at a comparison.
+    // Do not accept missing arithmetic operands or salvage incomplete prose.
+    if(allowIncompleteRelation&&tokens[start]?.type==='quantifier'&&index===tokens.length&&['=','<','>','\\le','\\ge','\\ne','\\in','\\notin'].includes(token.value)){
+     left=node(left.latex+token.value,left.evidence+2);break;
+    }
+    const right=expression(rank+1,stops);
     if(rank===20&&right.divisionScope)throw Error('Ambiguous fraction scope');
     left=node(token.value==='/'?`\\frac{${left.latex}}{${right.latex}}`:left.latex+token.value+' '+right.latex,left.evidence+right.evidence+2,{scope:token.spoken&&token.value==='/'&&!right.grouped,divisionScope:token.spoken&&token.value==='/'&&!right.grouped});
    }else if(token.type==='atom'||token.type==='open'||token.type==='function'){

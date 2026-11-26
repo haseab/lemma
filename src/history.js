@@ -9,13 +9,14 @@ export function validateHistory(value,currentLatex){
   const ranges=e.selection?.ranges;
   if(!Array.isArray(ranges)||!ranges.length||ranges.length>20||ranges.some(r=>!Array.isArray(r)||r.length!==2||r.some(n=>!Number.isSafeInteger(n)||n<0||n>5_000_000)))return null;
   const phraseSources=Array.isArray(e.phraseSources)?e.phraseSources.filter(p=>Number.isSafeInteger(p?.offset)&&p.offset>=0&&p.offset<=5_000_000&&typeof p.text==='string'&&p.text.length<=100&&typeof p.latex==='string'&&p.latex.length<=600).slice(0,4096).map(p=>({offset:p.offset,text:p.text,latex:p.latex,custom:p.custom===true,context:p.context!==false,...(typeof p.source==='string'&&p.source.length<=2000?{source:p.source}:{})})):[];
-  entries.push({phraseSources,latex:e.latex,typingMode:e.typingMode,selection:{ranges:ranges.map(r=>[...r]),direction:e.selection.direction==='backward'?'backward':'forward'}});
+  const proseLines=Array.isArray(e.proseLines)?e.proseLines.filter(n=>Number.isSafeInteger(n)&&n>=0&&n<=5_000_000).slice(0,4096):[];
+  entries.push({proseLines,phraseSources,latex:e.latex,typingMode:e.typingMode,selection:{ranges:ranges.map(r=>[...r]),direction:e.selection.direction==='backward'?'backward':'forward'}});
  }
  if(entries[value.index].latex!==currentLatex)return null;
  return {version:1,index:value.index,entries};
 }
 export function installPageHistory(field,saved,onChange=()=>{}){
- const read=()=>({phraseSources:field.readPhraseSources?.()||[],latex:field.value,typingMode:field.mode==='text'?'text':'math',selection:structuredClone(field.selection)});
+ const read=()=>({proseLines:field.readProseLines?.()||[],phraseSources:field.readPhraseSources?.()||[],latex:field.value,typingMode:field.mode==='text'?'text':'math',selection:structuredClone(field.selection)});
  let state=validateHistory(saved,field.value)||{version:1,index:0,entries:[read()]};
  let applying=false,timer,transactionDepth=0;
  const editor=field._mathfield;
@@ -26,9 +27,9 @@ export function installPageHistory(field,saved,onChange=()=>{}){
   }
  }
  function flush(){
-  clearTimeout(timer);if(applying||transactionDepth)return;
+  clearTimeout(timer);if(applying||transactionDepth||!field._mathfield)return;
   const next=read(),current=state.entries[state.index];
-  if(next.latex===current.latex){current.selection=next.selection;current.typingMode=next.typingMode;current.phraseSources=next.phraseSources;return;}
+  if(next.latex===current.latex){current.selection=next.selection;current.typingMode=next.typingMode;current.phraseSources=next.phraseSources;current.proseLines=next.proseLines;return;}
   state.entries.splice(state.index+1);state.entries.push(next);state.index=state.entries.length-1;trim();
  }
  function apply(entry){
@@ -36,6 +37,7 @@ export function installPageHistory(field,saved,onChange=()=>{}){
   editor.model.mode='math';
   field.setValue(entry.latex,{mode:'math',format:'latex',insertionMode:'replaceAll',style:{},silenceNotifications:true});
   field.restorePhraseSources?.(entry.phraseSources);
+  field.restoreProseLines?.(entry.proseLines);
   editor.model.mode=entry.typingMode;
   field.selection={ranges:entry.selection.ranges.map(r=>r.map(n=>Math.min(n,field.lastOffset))),direction:entry.selection.direction};
   editor.model.announce('line');

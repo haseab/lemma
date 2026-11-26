@@ -76,7 +76,7 @@ export function phraseAtEnd(text,enabled=ALL_NOTATION_GROUPS,multiOnly=false,lib
 }
 // Symbols must remain traversable even after their group is switched off.
 export function symbolPhrase(source,atom){
- if(!atom?.command?.startsWith('\\')&&!source.includes('\\mathbb'))return null;
+ if(!atom?.command?.startsWith('\\')&&!source.includes('\\mathbb')&&!['<','>','='].includes(atom?.value))return null;
  const entries=vocabulary().phrases;
  const number=source.match(/\\mathbb\{([RNZQC])\}/);
  if(number)return entries.find(p=>p.latex===`\\mathbb{${number[1]}}`);

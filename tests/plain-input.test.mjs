@@ -34,6 +34,31 @@ test('quantified statements accept comma-separated predicates without changing p
  assert.match(result,/\\forall T, u\\le 7/);assert.equal(validateLatex(result).length,0);
  assert.match(plainInputToLatex('there exists q, q is greater than three.'),/\\exists q, q> 3/);
  assert.match(plainInputToLatex('for all p, q, r is at most nine'),/\\forall p, q, r\\le 9/);
- for(const text of ['for all T, this is a sentence','for all T,','for all T, u is less than or equal to','At most seven people, including us, arrived.'])assert.equal(plainInputToLatex(text),`\\text{${text}}`);
+ for(const text of ['for all T, this is a sentence','for all T,','for all T, u plus'])assert.match(plainInputToLatex(text),/\\forall/);
+ assert.equal(plainInputToLatex('At most seven people, including us, arrived.'),'\\text{At most seven people, including us, arrived.}');
+ assert.equal(plainInputToLatex('for all T, u is less than or equal to'),'\\forall T, u\\le');
  const disabled=plainInputToLatex('for all T, u is at most seven',{groups:ALL_NOTATION_GROUPS.filter(g=>g!=='logic')});assert(!disabled.includes('\\forall'));assert.match(disabled,/for all T/);
+});
+
+test('quantifier wording prefers notation while explicit Text mode preserves prose',()=>{
+ for(const phrase of ['for all values','for all value']){
+  assert.match(plainInputToLatex(phrase+' V'),/\\forall V/);
+  assert.match(plainInputToLatex(phrase+' V, V is at most two'),/\\forall V, V\\le 2/);
+  for(const suffix of [' we measured',' of the experiment']){assert.match(plainInputToLatex(phrase+suffix),/\\forall/);assert.equal(plainInputToLatex(phrase+suffix,{mode:'text'}),`\\text{${phrase+suffix}}`);}
+ }
+});
+
+test('arbitrary quantified labels are retained rather than silently discarded',()=>{
+ for(const noun of ['chickens','objects','vectors']){
+  const result=plainInputToLatex(`for all ${noun} C`);assert.match(result,/\\forall/);assert(result.includes(noun));assert.equal(validateLatex(result).length,0);
+  const prose=`for all ${noun} we observed`;assert.match(plainInputToLatex(prose),/\\forall/);assert.equal(plainInputToLatex(prose,{mode:'text'}),`\\text{${prose}}`);
+ }
+});
+
+test('quantifier fallback converts recognized notation without discarding unknown labels',()=>{
+ for(const [source,pattern] of [['for all people less than 2',/</],['for all people greater than 2',/>/],['for all people at most 2',/\\le/],['for all people element of real numbers',/\\in.*\\mathbb\{R\}/]]){
+  const result=plainInputToLatex(source);assert.match(result,/\\forall/);assert.match(result,/people/);assert.match(result,pattern);assert.equal(validateLatex(result).length,0);
+ }
+ const source='for all people less than 2';assert.equal(plainInputToLatex(source,{mode:'text'}),`\\text{${source}}`);
+ assert(!plainInputToLatex(source,{groups:ALL_NOTATION_GROUPS.filter(g=>g!=='sets')}).includes('<'));
 });
