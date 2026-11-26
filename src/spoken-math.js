@@ -95,6 +95,12 @@ export function parseMath(tokens,start=0,{afterMath=false}={}){
    result=node(token.type==='root'?`\\sqrt${token.value==='3'?'[3]':''}{${child.latex}}`:token.type==='absolute'?`\\left|${child.latex}\\right|`:`${token.value}${child.grouped?child.latex:`\\left(${child.latex}\\right)`}`,2,{scope:!child.grouped,grouped:child.grouped});
   }else if(token.type==='quantifier'){
    const child=expression(0);result=node(token.value+' '+child.latex,child.evidence+2);
+   // A comma separates quantified variables from their mathematical predicate.
+   // Keep this local to quantifiers so ordinary prose commas do not imply math.
+   while(peek()?.type==='punctuation'&&peek().value===','){
+    take();const predicate=expression(0);
+    result=node(result.latex+', '+predicate.latex,result.evidence+predicate.evidence);
+   }
   }else throw Error('Not a mathematical operand');
   while(['postfix','script','ordinal'].includes(peek()?.type)){
    const operation=take();let child;

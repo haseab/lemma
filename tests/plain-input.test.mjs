@@ -29,3 +29,11 @@ test('bulk recognition can continue a mathematical operand already on the page',
  assert.match(plainInputToLatex(' squared plus two',{afterMath:true}),/\^\{2\}/);
  assert.equal(plainInputToLatex(' is in my notebook',{afterMath:true}),'\\text{ is in my notebook}');
 });
+test('quantified statements accept comma-separated predicates without changing prose',()=>{
+ const result=plainInputToLatex('for all T, u is less than or equal to seven');
+ assert.match(result,/\\forall T, u\\le 7/);assert.equal(validateLatex(result).length,0);
+ assert.match(plainInputToLatex('there exists q, q is greater than three.'),/\\exists q, q> 3/);
+ assert.match(plainInputToLatex('for all p, q, r is at most nine'),/\\forall p, q, r\\le 9/);
+ for(const text of ['for all T, this is a sentence','for all T,','for all T, u is less than or equal to','At most seven people, including us, arrived.'])assert.equal(plainInputToLatex(text),`\\text{${text}}`);
+ const disabled=plainInputToLatex('for all T, u is at most seven',{groups:ALL_NOTATION_GROUPS.filter(g=>g!=='logic')});assert(!disabled.includes('\\forall'));assert.match(disabled,/for all T/);
+});
