@@ -32,9 +32,9 @@ function beginNumericIndex(field){
 // coefficient. Reuse the native subscript branch so later digits stay inside.
 export function insertNumericIndex(field,text,insert){
  if(!/^\d+$/.test(text))finishNumericIndex(field);
- if(!/^\d+$/.test(text)||!field.selectionIsCollapsed||field.mode!=='math'||field.pageInputMode==='text'||field.isProseLine?.())return false;
+ if(field.readOnly||field.disabled||!field._mathfield?.isSelectionEditable||!/^\d+$/.test(text)||!field.selectionIsCollapsed||field.mode!=='math'||field.pageInputMode==='text'||field.isProseLine?.())return false;
  const atom=field._mathfield.model.at(field.position);
- if(atom?.mode!=='math'||! /^[A-Za-zα-ωΑ-Ω]$/u.test(atom.value||'')||atom.hasChildren||atom.subscript?.length||atom.parent?.command==='\\operatorname')return false;
+ if(atom?.mode!=='math'||! /^\p{L}$/u.test(atom.value||'')||atom.hasChildren||atom.subscript?.length||atom.parent?.command==='\\operatorname')return false;
  const left=field.getValue([Math.max(0,field.position-80),field.position],'plain-text').replace(/\u00a0/g,' ');
  // Dimension syntax and user-defined numeric triggers retain their meaning.
  if(/\d+\s*[x×]$/i.test(left)||phraseAtEnd(left+text,field.notationGroups,false,field.customDictionaries)?.custom)return false;

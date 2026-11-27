@@ -2,7 +2,7 @@
 
 These are notation-reconstruction targets, not mathematical derivations or a measurement of speech-recognition accuracy. Readings are independently written. Capital letters are said explicitly because case matters. Use the stated grouping when scope would otherwise be ambiguous. Physical formulas assume their usual textbook regimes and idealizations.
 
-Each reading is tested against an independently authored expression, including case, fractions, scripts, grouping and operator bounds. Source text is assessed locally; no document content is sent to a model.
+Each reading is tested against an independently authored expression through completed paste, dictation and character-by-character keyboard/text input in Auto and Math, including case, fractions, scripts, grouping and operator bounds. Source text is assessed locally; no document content is sent to a model.
 
 ## Algebra
 

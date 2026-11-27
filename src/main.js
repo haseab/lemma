@@ -1,3 +1,6 @@
+import {installFontPicker} from './font-picker.js';
+import './font-picker.css';
+import './text-fonts.css';
 import {installNotationControl} from './notation-controls.js';
 import './notation-controls.css';
 import {installWelcome} from './welcome.js';
@@ -18,7 +21,7 @@ import {importPageFile,exportLatex,readableSelection} from './formats.js';
 import {MathfieldElement,createPageMathfield} from './page-editor.js';
 import {createIcons,icons} from 'lucide';
 import {EMPTY_PAGE,freshDocument,validateNotebook,validateDocument,duplicateDocument} from './document.js';
-import {FONTS,FONT_SIZES,applyFormatting} from './formatting.js';
+import {FONT_SIZES,applyFormatting} from './formatting.js';
 import './style.css';
 MathfieldElement.fontsDirectory=new URL('./fonts',document.baseURI).href;
 MathfieldElement.soundsDirectory=null;
@@ -52,7 +55,7 @@ function trimHistories(){
 }
 function capture(){
  if(!mf||loading||!notebook)return;
- active().content={type:'math-page',latex:mf.value,mode:active().content.mode};active().history=mf.pageHistory.serialize();active().title=$('#title').value||'Untitled page';if(dirty)active().updatedAt=Date.now();trimHistories();
+ active().content={type:'math-page',latex:mf.value,...(mf.textFont?{textFont:mf.textFont}:{}),mode:active().content.mode};active().history=mf.pageHistory.serialize();active().title=$('#title').value||'Untitled page';if(dirty)active().updatedAt=Date.now();trimHistories();
 }
 function scheduleSave(){if(loading)return;sourcePanel?.sync();dirty=true;editRevision++;if(blocked)return;$('#save-status').textContent='Saving…';autosave.schedule();}
 async function persist(){
@@ -86,6 +89,8 @@ function mode(value,focus=true){
 function switchDocument(id){
  const switching=!!mf;capture();notebook.activeId=id;loading=true;if(mf){mf.pageHistory.dispose();mf.remove();}
  mf=createPageMathfield($('#surface'),active().content.latex||EMPTY_PAGE,scheduleSave);
+ mf.textFont=active().content.textFont;
+ mf.pageInputMode=active().content.mode||'auto';
  installPageHistory(mf,active().history,scheduleSave);
  mf.addEventListener('editor-error',e=>toast(e.detail));
  mf.addEventListener('selection-change',()=>{for(const [id,style]of [['bold',{fontSeries:'b'}],['italic',{fontShape:'it'}]])$('#'+id).setAttribute('aria-pressed',String(mf.queryStyle(style)==='all'));});
@@ -175,9 +180,9 @@ for(const value of ['auto','math','text'])$('#mode-'+value).onclick=()=>{mode(va
 for(const [id,latex]of Object.entries(templates)){$('#'+id).onmousedown=e=>e.preventDefault();$('#'+id).onclick=()=>{mf.pageHistory.flush();mf.focus();mf.executeCommand(['insert',latex,{mode:'math'}]);};}
 for(const command of ['undo','redo']){$('#'+command).onmousedown=e=>e.preventDefault();$('#'+command).onclick=()=>{mf.focus();mf.pageHistory[command]();};}
 for(const [id,style]of [['bold',{fontSeries:'b'}],['italic',{fontShape:'it'}]]){$('#'+id).onmousedown=e=>e.preventDefault();$('#'+id).onclick=()=>{mf.pageHistory.flush();mf.focus();applyFormatting(mf,style,{toggle:true});scheduleSave();};}
-for(const id of ['font','font-size','ink'])$('#'+id).addEventListener('pointerdown',()=>{mf.pageHistory.flush();formatSelection=structuredClone(mf.selection);});
+for(const id of ['font-size','ink'])$('#'+id).addEventListener('pointerdown',()=>{mf.pageHistory.flush();formatSelection=structuredClone(mf.selection);});
 function format(style){if(formatSelection)mf.selection=formatSelection;applyFormatting(mf,style);scheduleSave();mf.focus();formatSelection=structuredClone(mf.selection);}
-$('#font').onchange=()=>format({fontFamily:FONTS[$('#font').value]});$('#font-size').onchange=()=>format({fontSize:Number($('#font-size').value)});
+installFontPicker($('#font'),()=>mf,scheduleSave);$('#font-size').onchange=()=>format({fontSize:Number($('#font-size').value)});
 $('#ink').oninput=()=>{if(formatSelection)mf.selection=formatSelection;applyFormatting(mf,{color:$('#ink').value});scheduleSave();};$('#ink').onchange=()=>mf.focus();
 $('#keyboard').onmousedown=e=>e.preventDefault();$('#keyboard').onclick=()=>{mf.focus();mf.executeCommand('toggleVirtualKeyboard');};
 $('#library-toggle').onclick=()=>document.body.classList.toggle('show-library');$('#search').oninput=renderList;

@@ -11,22 +11,22 @@ test('change in and change of compose as prefix operators with fractions and ind
  }
  assert.equal(plainInputToLatex('change in m1 over change of t2'),'\\frac{\\Delta m_{1}}{\\Delta t_{2}}');
  assert.equal(plainInputToLatex('change in open parenthesis x plus y close parenthesis'),'\\Delta \\left(x+ y\\right)');
- for(const source of ['A change in the weather.','The change of plans was welcome.','change in the temperature','change in'])assert.equal(plainInputToLatex(source),`\\text{${source}}`);
+ for(const source of ['A change in the weather.','The change of plans was welcome.','change in the temperature'])assert.equal(plainInputToLatex(source),`\\text{${source}}`);
  assert.equal(plainInputToLatex('change in D',{mode:'text'}),'\\text{change in D}');
  assert.equal(plainInputToLatex('change in D',{groups:ALL_NOTATION_GROUPS.filter(group=>group!=='calculus')}),'\\text{change in D}');
 });
 test('numeric variable suffixes are subscripts while leading coefficients retain multiplication',()=>{
- for(const [source,expected]of [['m1m2','m_{1} m_{2}'],['m12 plus q2','m_{12}+ q_{2}'],['2m1','2 m_{1}'],['m one plus m two','m_{1}+ m_{2}'],['capital M1 plus theta2','M_{1}+ \\theta_{2}'],['μ3 plus 2x','μ_{3}+ 2 x'],['F equals g m1 m2 over r squared','F= \\frac{g m_{1} m_{2}}{r^{2}}']])assert.equal(plainInputToLatex(source),expected);
+ for(const [source,expected]of [['m1m2','m_{1} m_{2}'],['m12 plus q2','m_{12}+ q_{2}'],['2m1','2 m_{1}'],['m one plus m two','m_{1}+ m_{2}'],['capital M1 plus theta2','M_{1}+ \\theta_{2}'],['μ3 plus 2x','μ_{3}+ 2 x'],['capital F equals g m1 m2 over r squared','F= \\frac{g m_{1} m_{2}}{r^{2}}']])assert.equal(plainInputToLatex(source),expected);
  assert.equal(plainInputToLatex('2m'),'2 m');assert.equal(plainInputToLatex('m 2'),'m 2');
  assert.equal(plainInputToLatex('m1 and m2',{mode:'text'}),'\\text{m1 and m2}');
  assert.equal(plainInputToLatex('Version model12 is available.'),'\\text{Version model12 is available.}');
 });
 test('spoken division shares completed and pending fraction structure',()=>{
  for(const operator of ['over','all over','divided by']){
-  assert.equal(liveFractionInput(`E = P ${operator} t`).latex,'E= \\frac{P}{t}');
-  const pending=liveFractionInput(`E = P ${operator} `);assert(pending.pendingFraction);assert.equal(pending.latex,'E= \\frac{P}{#?}');
-  assert.equal(plainInputToLatex(`E = P ${operator} `),pending.latex);
-  assert.equal(liveFractionInput(`E = P ${operator}`),null);
+  assert.equal(liveFractionInput(`capital E = capital P ${operator} t`).latex,'E= \\frac{P}{t}');
+  const pending=liveFractionInput(`capital E = capital P ${operator} `);assert(pending.pendingFraction);assert.equal(pending.latex,'E= \\frac{P}{#?}');
+  assert.equal(plainInputToLatex(`capital E = capital P ${operator} `),pending.latex);
+  assert.equal(liveFractionInput(`capital E = capital P ${operator}`),null);
  }
  for(const text of ['We went over the hill.','P overtakes t','This is divided by topic.'])assert.equal(liveFractionInput(text),null);
 });
@@ -55,9 +55,9 @@ test('spoken sums, roots and fraction bars form nested expressions without formu
   ['square root of open parenthesis p plus q close parenthesis plus r','\\sqrt{\\left(p+ q\\right)}+ r'],
   ['5pq plus 3PQ','5 p q+ 3 P Q']
  ])assert.equal(plainInputToLatex(source),expected);
- for(const source of ['We have 2cats in the room.','The square root of the problem is unclear.','p plus or minus','the square root of','p plus q over'])assert.equal(plainInputToLatex(source),`\\text{${source}}`);
+ for(const source of ['We have 2cats in the room.','The square root of the problem is unclear.','the square root of'])assert.equal(plainInputToLatex(source),`\\text{${source}}`);
 });
-test('spoken arithmetic preserves variable case including at the start of a sentence',()=>{
+test('spoken arithmetic preserves literal variable case',()=>{
  for(const variable of ['x','X','t','T']){
   const source=`${variable} squared plus 2${variable} plus 1.`;
   assert.equal(plainInputToLatex(source),`${variable}^{2}+ 2 ${variable}+ 1\\text{.}`);
@@ -76,7 +76,7 @@ test('relative comparisons form mathematical chains across dictated whitespace a
  assert(!plainInputToLatex(sentence,{groups:ALL_NOTATION_GROUPS.filter(group=>group!=='sets')}).includes('<'));
 });
 test('relative-clause prose and incomplete or ambiguous comparisons are preserved',()=>{
- for(const source of ['4 is less than t, which is a useful bound.','4 is less than t, which is less than the limit.','4 is less than t, which is less than','t, which is less than eleven.','4 plus t, which is less than eleven.'])assert.equal(plainInputToLatex(source),`\\text{${source}}`);
+ for(const source of ['4 is less than t, which is a useful bound.','4 is less than t, which is less than the limit.','t, which is less than eleven.','4 plus t, which is less than eleven.'])assert.equal(plainInputToLatex(source),`\\text{${source}}`);
  const source='This\u00a0is\u00a0in\u00a0the\u00a0notebook.';assert.equal(plainInputToLatex(source),`\\text{${source}}`);
  assert.equal(plainInputToLatex('square\u00a0root\u00a0of\u00a081'),'\\sqrt{81}');
 });
@@ -155,11 +155,11 @@ test('vector accents compose with change prefixes, fractions, indices and explic
  assert.equal(plainInputToLatex('The vector is useful.'),'\\text{The vector is useful.}');
 });
 
-test('delta defaults to uppercase while explicit lowercase delta stays lowercase',()=>{
+test('delta defaults to uppercase with an explicit lowercase override',()=>{
+ for(const source of ['lowercase delta'])assert.match(plainInputToLatex(source),/\\delta/);
  for(const source of ['delta','Delta','DELTA','capital delta','uppercase delta'])assert.match(plainInputToLatex(source),/\\Delta/);
- assert.match(plainInputToLatex('lowercase delta'),/\\delta/);
  assert.equal(plainInputToLatex('delta x over delta t'),'\\frac{\\Delta x}{\\Delta t}');
- assert.equal(plainInputToLatex('lowercase delta x over lowercase delta t'),'\\frac{\\delta x}{\\delta t}');
+ assert.equal(plainInputToLatex('change in x over change in t'),'\\frac{\\Delta x}{\\Delta t}');
  assert.equal(plainInputToLatex('delta2 plus lowercase delta3'),'\\Delta_{2}+ \\delta_{3}');
  assert.equal(plainInputToLatex('delta',{mode:'text'}),'\\text{delta}');
  assert.equal(lowercasePastedVariables('ΔX equals 2'),'Δx equals 2');
@@ -192,4 +192,82 @@ test('commas are ignored for equation recognition without changing prose or math
  assert.equal(plainInputToLatex('f of open parenthesis x, y close parenthesis'),'f\\left(x,y\\right)');
  assert.equal(plainInputToLatex('Vector, capital F sub e.',{mode:'text'}),'\\text{Vector, capital F sub e.}');
  assert.equal(plainInputToLatex('Hello, this is prose.'),'\\text{Hello, this is prose.}');
+});
+
+test('numeric and spoken cardinal coefficients compose with denominator names and equality aliases',()=>{
+ for(const variable of ['x','q'])for(const equality of ['equals','equals to','is equal to'])for(const [numerator,value]of [['1','1'],['one','1'],['3','3'],['three','3'],['21','21'],['twenty one','21']])for(const [part,denominator]of [['half',2],['halves',2],['thirds',3],['quarter',4],['fourths',4],['tenths',10]]){
+  const input=`${variable} sub j ${equality} ${numerator} ${part} uv squared.`;
+  const expected=`${variable}_{j}= \\frac{${value}}{${denominator}} u v^{2}\\text{.}`;
+  for(const whitespace of [' ','\u00a0','\u202f'])assert.equal(plainInputToLatex(input.replaceAll(' ',whitespace)),expected,input);
+ }
+ assert.equal(plainInputToLatex('E sub k equals to 1 half mv squared.'),'E_{k}= \\frac{1}{2} m v^{2}\\text{.}');
+ assert.equal(plainInputToLatex('x equals to 2 quarters plus y'),'x= \\frac{2}{4}+ y');
+ assert.equal(plainInputToLatex('1 half'),'\\frac{1}{2}');
+ for(const input of ['I ate 1 half of the apple.','The first half is over.','1 half of our team arrived.','1.5 halves'])assert.equal(plainInputToLatex(input),`\\text{${input}}`);
+ const source='x equals to 1 half mv squared.';assert.equal(plainInputToLatex(source,{mode:'text'}),`\\text{${source}}`);
+ const tokens=tokenizeMath('q equals to 21 thirds');assert.equal(tokens[1].value,'=');const coefficient=tokens.find(token=>token.number);assert.equal(coefficient.value,'\\frac{21}{3}');assert.equal('q equals to 21 thirds'.slice(coefficient.start,coefficient.end),'21 thirds');
+ const libraries=[{id:'custom',name:'Custom',enabled:true,entries:[{text:'1 half',latex:'\\zeta',context:false,enabled:true}]}];
+ assert.equal(plainInputToLatex('1 half',{libraries}),'{\\mathord{\\zeta}}');
+});
+
+
+test('incomplete recognized operators stay mathematical across input assessment',()=>{
+ assert.equal(plainInputToLatex('change in'),'\\Delta');
+ assert.equal(plainInputToLatex('change of'),'\\Delta');
+ for(const [source,expected]of [['p plus or minus','p\\pm'],['x equals to','x='],['4 is less than t, which is less than','4< t<'],['p plus q over','\\frac{p+ q}{#?}']])assert.equal(plainInputToLatex(source),expected,source);
+});
+
+
+test('explicit Math keeps recognized spans around unfinished and unknown words',()=>{
+ for(const tail of ['equa','equal','equal t']){
+  const source=`force is ${tail}`;
+  const latex=plainInputToLatex(source,{mode:'math'});
+  assert.match(latex,/^\\vec\{F\}/);assert(latex.includes('='));assert(!latex.includes('force'));
+  assert(latex.replace(/\\ |\s/g,'').includes(tail.replaceAll(' ','')));
+ }
+ assert.equal(plainInputToLatex('force equals unknownlabel plus energy',{mode:'math'}).replace(/\s/g,''),'\\vec{F}=unknownlabel+E');
+ assert.equal(plainInputToLatex('force is equal to mass',{mode:'math'}),'\\vec{F}= m');
+ assert.equal(plainInputToLatex('force is equal to mass',{mode:'text'}),'\\text{force is equal to mass}');
+});
+
+
+test('groups establish compact-product context without an equation or retained prefix',()=>{
+ for(const source of ['1 half bracket kx squared.','one half bracket kx squared.','1\u00a0half\u00a0bracket\u00a0kx\u00a0squared.'])assert.equal(plainInputToLatex(source),'\\frac{1}{2} \\left(k x^{2}\\right)\\text{.}');
+ for(const [product,expected]of [['kx','k x^{2}'],['ab','a b^{2}'],['pqr','p q r^{2}']]){
+  const source=`bracket ${product} squared.`;
+  for(const options of [{},{afterMath:true},{mode:'math'}])assert.equal(plainInputToLatex(source,options),`\\left(${expected}\\right)\\text{.}`,source);
+  assert.equal(plainInputToLatex(`open parenthesis ${product} squared close parenthesis`),`\\left(${expected}\\right)`);
+ }
+ for(const source of ['a cat sleeps','a red balloon','bracket unknownlabel squared'])assert.equal(plainInputToLatex(source),`\\text{${source}}`);
+ assert.equal(plainInputToLatex('bracket kx squared',{mode:'text'}),'\\text{bracket kx squared}');
+});
+
+
+test('pending dictionary phrases preserve a recognized expression in Auto',async()=>{
+ const {liveMathInput}=await import('../src/plain-input.js');
+ for(const expression of ['sine theta','cosine phi','x squared'])for(const phrase of ['equals','lambda','greater than']){
+  const recognized=liveMathInput(expression).contentLatex;
+  for(let length=1;length<phrase.length;length++){
+   const source=expression+' '+phrase.slice(0,length),parsed=liveMathInput(source);
+   assert(parsed,source);assert(parsed.contentLatex.startsWith(recognized),source);
+  }
+ }
+ assert.equal(liveMathInput('sine theta unknownlabel'),null);
+ assert.equal(plainInputToLatex('the equal number'),'\\text{the equal number}');
+});
+
+test('spoken fence actions compose with shapes before named operators and preserve fraction scope',()=>{
+ for(const space of [' ','\u00a0','\u202f'])for(const close of ['end bracket','close bracket','right bracket']){
+  const input=`2t equals bracket m plus 1 half ${close} lambda all over w`.replaceAll(' ',space);
+  for(const mode of ['auto','math'])assert.equal(plainInputToLatex(input,{mode}),String.raw`2 t= \frac{\left(m+ \frac{1}{2}\right) \lambda}{w}`,input);
+ }
+ for(const [name,left,right]of [['bracket','[',']'],['parenthesis','(',')'],['parentheses','(',')'],['round bracket','(',')'],['square bracket','[',']'],['brace',String.raw`\{`,String.raw`\}`],['curly bracket',String.raw`\{`,String.raw`\}`]])for(const open of ['open','start','begin','left'])for(const close of ['close','end','right']){
+  const source=`${open} ${name} x plus y ${close} ${name} squared`;
+  assert.equal(plainInputToLatex(source,{mode:'math'}),String.raw`\left`+left+String.raw`x+ y\right`+right+'^{2}',source);
+ }
+ assert.equal(plainInputToLatex('bracket x plus open bracket y minus z end bracket end bracket'),String.raw`\left(x+ \left[y- z\right]\right)`);
+ assert.equal(plainInputToLatex('open parenthesis x close bracket'),String.raw`\left(x\right)`);
+ assert.equal(plainInputToLatex('open square bracket x end round bracket'),String.raw`\text{open square bracket x end round bracket}`);
+ assert.equal(plainInputToLatex('2t equals bracket m plus 1 half end bracket lambda all over w',{mode:'text'}),String.raw`\text{2t equals bracket m plus 1 half end bracket lambda all over w}`);
+ assert.match(plainInputToLatex('End'),/operatorname\{End\}/);
 });

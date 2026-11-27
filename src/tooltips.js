@@ -7,6 +7,7 @@ export function installTooltips(doc){
  function prepareTree(root){if(root.matches?.(selector))prepare(root);root.querySelectorAll?.(selector).forEach(prepare);}
  function hide(){if(active){if(previousDescription===null)active.removeAttribute('aria-describedby');else active.setAttribute('aria-describedby',previousDescription);}active=null;tip.hidden=true;}
  function show(control){
+  if(control.closest('[data-no-tooltip]')){hide();return;}
   prepare(control);const label=control.dataset.tooltip||control.getAttribute('aria-label');if(!label)return;
   hide();active=control;previousDescription=control.getAttribute('aria-describedby');control.setAttribute('aria-describedby',[previousDescription,tip.id].filter(Boolean).join(' '));
   (control.closest('dialog[open]')||doc.body).append(tip);tip.textContent=label;tip.hidden=false;

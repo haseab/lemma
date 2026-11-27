@@ -1,7 +1,11 @@
+import {continuesMathOperand} from './math-grammar.js';
+import {mathLeftContext} from './math-context.js';
+import {tokenizeMath} from './spoken-math.js';
+import {mathInputOptions,PLAIN_INPUT_LIMIT} from './math-input-options.js';
 import {insertPageBreak} from './editing.js';
 import {convertLatexToMathMl,validateLatex} from 'mathlive';
 import {importLatex,looksLikeLatex,readableSelection,splitDisplayRows} from './formats.js';
-import {plainInputToLatex,liveFractionInput,livePrefixInput,lowercasePastedVariables} from './plain-input.js';
+import {plainInputToLatex,liveMathInput,lowercasePastedVariables} from './plain-input.js';
 import {withEquationTypography} from './formatting.js';
 import {insertNumericIndex} from './indices.js';
 export function clipboardPayload(field){
@@ -19,21 +23,51 @@ export function insertClipboard(field,types,{onError=()=>{}}={}){
  if(source.length>2_000_000){onError('Pasted content exceeds the page limit.');return true;}
  field.dismissAutomaticConversion?.();
  try{
-  const originalSource=source;
-  if(!latex&&!looksLikeLatex(source))source=lowercasePastedVariables(source,{groups:field.notationGroups,libraries:field.customDictionaries,mode:field.isProseLine?.()?'text':field.pageInputMode});
+  const originalSource=source,inputOptions=mathInputOptions(field,{afterMath:pasteFollowsMath(field)});
+  if(!latex&&!looksLikeLatex(source))source=lowercasePastedVariables(source,inputOptions);
+  let continuation=null,retainedSource=true;
+  if(!latex&&!looksLikeLatex(source)&&!/[\r\n`$]/.test(source)&&inputOptions.mode==='math'&&field.selectionIsCollapsed){
+   const first=tokenizeMath(source,inputOptions)[0];
+   if(continuesMathOperand(first)){
+    const run=field.readConnectedInput?.(),at=field.position,native=mathLeftContext(field,at);
+    if(native&&(!run?.text||native.start<run.start)){
+     const parsed=liveMathInput(source,{...inputOptions,leftTokens:native.tokens});
+     if(parsed){continuation={start:native.start,end:at,latex:parsed.latex};retainedSource=false;}
+    }
+    if(!continuation){
+    if(run?.end===at&&run.start<at&&run.hasMath&&run.styles.every(style=>JSON.stringify(style)===JSON.stringify(run.styles[0]))){
+     const boundary=/[A-Za-z]$/.test(run.text)&&/^[A-Za-z]/.test(source)?' ':'';
+     const combined=run.text+boundary+source,tokens=tokenizeMath(combined,inputOptions);
+     if(!continuesMathOperand(tokens[0])){
+      const parsed=combined.length<=PLAIN_INPUT_LIMIT&&liveMathInput(combined,{...inputOptions,afterMath:pasteFollowsMath(field,run.start)});
+      if(parsed){continuation={start:run.start,end:at,latex:parsed.latex};source=combined;}
+     }else{
+      const left=mathLeftContext(field,run.start,tokens[0]);
+      const parsed=left&&liveMathInput(combined,{...inputOptions,leftTokens:left.tokens});
+      if(parsed){continuation={start:left.start,end:at,latex:parsed.latex};retainedSource=false;}
+     }
+    }else{
+     const left=mathLeftContext(field,at,first),parsed=left&&liveMathInput(source,{...inputOptions,leftTokens:left.tokens});
+     if(parsed){continuation={start:left.start,end:at,latex:parsed.latex};retainedSource=false;}
+    }
+    }
+   }
+  }
   let value;
-  if(latex||field.pageInputMode!=='text'&&!field.isProseLine?.()&&looksLikeLatex(source))value=importLatex(source);
-  else value=plainInputToLatex(source,{groups:field.notationGroups,libraries:field.customDictionaries,shortcuts:field.getNotationShortcuts?.(),mode:field.isProseLine?.()?'text':field.pageInputMode,afterMath:pasteFollowsMath(field)});
+  if(continuation)value=continuation.latex;
+  else if(latex||field.pageInputMode!=='text'&&!field.isProseLine?.()&&looksLikeLatex(source))value=importLatex(source);
+  else value=plainInputToLatex(source,inputOptions);
   if(validateLatex(value).length)throw Error('Pasted content contains unsupported or incomplete LaTeX. The current selection was preserved.');
   const locked=field.isProseLine?.();
   field.proseSuspended=true;
   const converted=!latex&&field.pageInputMode!=='text'&&!locked&&!looksLikeLatex(source)&&value!==plainInputToLatex(source,{mode:'text'});
   const automatic=converted&&field.pageInputMode==='auto';
-  const assessmentOptions={groups:field.notationGroups,libraries:field.customDictionaries,shortcuts:field.getNotationShortcuts?.()};
-  const pendingPlaceholder=converted&&value.includes('#?')&&(liveFractionInput(source,assessmentOptions)||livePrefixInput(source,assessmentOptions))?.pendingPlaceholder;
+  const pendingPlaceholder=converted&&value.includes('#?');
   const insertValue=()=>{
+   if(continuation)field.selection={ranges:[[continuation.start,continuation.end]]};
    const start=Math.min(...field.selection.ranges.flat());
    const result=insertLatexContent(field,value);
+   if(converted&&retainedSource)field.noteParsedSource?.(source,start,field.position,inputOptions);
    if(pendingPlaceholder)for(let offset=field.position;offset>start;offset--){
     if(field._mathfield.model.at(offset)?.type==='placeholder'){field.selection={ranges:[[offset-1,offset]]};break;}
    }
@@ -52,14 +86,14 @@ export function insertClipboard(field,types,{onError=()=>{}}={}){
   return true;
  }catch(error){onError(error.message);return true;}
 }
-function pasteFollowsMath(field){
+export function pasteFollowsMath(field,position=Math.min(...field.selection.ranges.flat())){
  const model=field._mathfield.model;
- let offset=Math.min(...field.selection.ranges.flat());
+ let offset=position;
  // A separating space can be a text atom, even within an otherwise math row.
  for(let scanned=0;offset>0&&scanned<100;scanned++,offset--){
   const atom=model.at(offset);
   if(/^\s+$/.test(atom?.value||''))continue;
-  return atom?.mode==='math'&&(!!atom.superscript?.length||!!atom.subscript?.length||['genfrac','surd','leftright'].includes(atom.type)||/^[A-Za-z0-9α-ωΑ-Ω]$/.test(atom.value||''));
+  return atom?.mode==='math'&&(!!atom.superscript?.length||!!atom.subscript?.length||['genfrac','surd','leftright'].includes(atom.type)||/^[\p{L}\p{N}]$/u.test(atom.value||''));
  }
  return false;
 }
@@ -67,8 +101,8 @@ export function installClipboard(field,onError,diagnose=()=>{}){
  const sink=field.shadowRoot.querySelector('[part=keyboard-sink]');
  // This is an editable multiline document, including for text-service clients.
  sink.setAttribute('aria-multiline','true');sink.setAttribute('inputmode','text');
- // Variable case carries meaning. Request literal input from browser keyboards;
- // pasted math uses lowercase defaults with explicit spoken case overrides.
+ // Keep keyboard auto-capitalization out of prose input. The shared math
+ // tokenizer applies variable casing and explicit spoken case overrides.
  sink.setAttribute('autocapitalize','off');
  const debugParams=new URLSearchParams(location.search);
  const retainNativeReadback=debugParams.get('pasteReadback')!=='0';
@@ -134,7 +168,7 @@ export function installClipboard(field,onError,diagnose=()=>{}){
   if(text===' '&&field.mode==='math'&&field.mathModeSpace&&field.pageInputMode!=='text'&&!field.isProseLine?.()){
    field.executeCommand(['insert',field.mathModeSpace,{format:'latex',mode:'math',selectionMode:'after'}]);return;
   }
-  if(!field.proseSuspended&&field.mode!=='latex'&&typeof text==='string'&&text.length>1&&/[A-Za-z]/.test(text)){
+  if(!field.proseSuspended&&field.mode!=='latex'&&typeof text==='string'&&Array.from(text).length>1){
    insertClipboard(field,{'text/plain':text},{onError});return;
   }
   return originalInput(text,options);

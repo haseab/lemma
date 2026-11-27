@@ -30,7 +30,7 @@ The app is created at `deliverables/Lemma-darwin-arm64/Lemma.app`. Packaging reg
 - Backticks enter and leave explicit inline math. Math and Text modes override automatic detection. Alphabetic math shortcuts wait for word boundaries in Auto mode so a prefix such as `in` cannot consume the beginning of `inline`.
 - Prose wraps to the page width. Fractions, exponents, roots and matrices retain their structured layout. Enter creates a hard line break and preserves text after the caret.
 - `/` creates a fraction and `^` a power in math mode. Arrow keys navigate structured math. Tab indents; Shift-Tab removes an indent. Escape moves focus from the editor to the formatting controls. Left and right arrows move between toolbar controls when a button has focus.
-- Select text to change its font family, size, color, bold or italic style. Formatting also applies to upcoming typing.
+- Select text to change its font family, size, color, bold or italic style. The typography picker includes 18 typefaces across sans, serif, mono, and handwritten categories, with search and selected-text previews. Fonts are bundled for offline use; text styling survives reopening and Undo/Redo, while equations keep their mathematical typefaces. Formatting also applies to upcoming typing.
 - At the baseline immediately after an exponent, Backspace pulls the following math expression into that exponent and its open parenthesis, if present. It preserves nested formatting and stops at a relation or prose.
 - Use the Pages sidebar to create and switch pages. Rename a page by double-clicking its tab or choosing Rename page in the tab context menu.
 
@@ -49,6 +49,8 @@ Saved work stays in the original per-user application data directory so existing
 ## Find and replace
 
 Use Command-F to find literal text and symbols. Command-G and Shift-Command-G move between results. The find bar supports case matching, replacing one match and replacing all matches. Search respects structural boundaries instead of treating a fraction or exponent as flat text; edit a complete formula through LaTeX source when needed.
+
+Physics readings distinguish quantity variables from units: “energy equals twenty joules” becomes E = 20 J, with an upright unit symbol. The inspectable Physics & units dictionary includes mechanics, fluids, optics, thermodynamics, electromagnetism and atomic physics. SI prefixes, compound units, unit powers and scientific magnitudes compose through the shared grammar. See [Physical notation](docs/PHYSICAL-NOTATION.md) for the catalog, examples and conventions.
 
 Select a part of an expression and press Command-K (Ctrl-K on other platforms) to replace it using words. Hover a term or highlighted selection and click **Edit**, or choose **Edit** from the right-click menu, to open the same popover. It previews notation as you type or paste. Enter applies the replacement as one undoable edit; Escape cancels. The page stays unchanged until you apply it.
 

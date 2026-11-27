@@ -8,7 +8,7 @@ export function validateHistory(value,currentLatex){
   if(typeof e?.latex!=='string'||e.latex.length>2_000_000||!['math','text'].includes(e.typingMode))return null;
   const ranges=e.selection?.ranges;
   if(!Array.isArray(ranges)||!ranges.length||ranges.length>20||ranges.some(r=>!Array.isArray(r)||r.length!==2||r.some(n=>!Number.isSafeInteger(n)||n<0||n>5_000_000)))return null;
-  const phraseSources=Array.isArray(e.phraseSources)?e.phraseSources.filter(p=>Number.isSafeInteger(p?.offset)&&p.offset>=0&&p.offset<=5_000_000&&typeof p.text==='string'&&p.text.length<=100&&typeof p.latex==='string'&&p.latex.length<=600).slice(0,4096).map(p=>({offset:p.offset,text:p.text,latex:p.latex,custom:p.custom===true,context:p.context!==false,...(typeof p.source==='string'&&p.source.length<=2000?{source:p.source}:{})})):[];
+  const phraseSources=Array.isArray(e.phraseSources)?e.phraseSources.filter(p=>Number.isSafeInteger(p?.offset)&&p.offset>=0&&p.offset<=5_000_000&&typeof p.text==='string'&&p.text.length<=(p.parsedSource===true?16000:100)&&typeof p.latex==='string'&&p.latex.length<=(p.parsedSource===true?16000:600)).slice(0,4096).map(p=>({offset:p.offset,text:p.text,latex:p.latex,custom:p.custom===true,context:p.context!==false,parsedSource:p.parsedSource===true,...(p.parsedSource===true&&Number.isSafeInteger(p.start)&&p.start>=0&&p.start<=p.offset?{start:p.start}:{}),...(typeof p.source==='string'&&p.source.length<=(p.parsedSource===true?16000:2000)?{source:p.source}:{})})):[];
   const proseLines=Array.isArray(e.proseLines)?e.proseLines.filter(n=>Number.isSafeInteger(n)&&n>=0&&n<=5_000_000).slice(0,4096):[];
   entries.push({proseLines,phraseSources,latex:e.latex,typingMode:e.typingMode,selection:{ranges:ranges.map(r=>[...r]),direction:e.selection.direction==='backward'?'backward':'forward'}});
  }
@@ -40,6 +40,10 @@ export function installPageHistory(field,saved,onChange=()=>{}){
   field.restoreProseLines?.(entry.proseLines);
   editor.model.mode=entry.typingMode;
   field.selection={ranges:entry.selection.ranges.map(r=>r.map(n=>Math.min(n,field.lastOffset))),direction:entry.selection.direction};
+  // Equivalent LaTeX can canonicalize on reload (s^{2} becomes s^2).
+  // Record that serialization so the next flush cannot truncate Redo by
+  // mistaking restoration itself for a fresh edit.
+  entry.latex=field.value;
   editor.model.announce('line');
   applying=false;
  }

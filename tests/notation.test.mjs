@@ -7,7 +7,7 @@ import {installNotationControl} from '../src/notation-controls.js';
 test('all groups start enabled, choices persist, and malformed settings recover',()=>{
  const data=new Map(),storage={getItem:key=>data.get(key),setItem:(key,value)=>data.set(key,value)};
  assert.deepEqual(loadNotationGroups(storage),ALL_NOTATION_GROUPS);saveNotationGroups(storage,['logic','sets','invalid']);assert.deepEqual(loadNotationGroups(storage),['logic','sets']);
- saveNotationGroups(storage,[]);assert.deepEqual(loadNotationGroups(storage),[]);data.set('lemma.notation-groups.v1','bad');assert.deepEqual(loadNotationGroups(storage),ALL_NOTATION_GROUPS);
+ saveNotationGroups(storage,[]);assert.deepEqual(loadNotationGroups(storage),[]);data.set('lemma.notation-groups.v2','bad');assert.deepEqual(loadNotationGroups(storage),ALL_NOTATION_GROUPS);
  assert.deepEqual(normalizeGroups(null),ALL_NOTATION_GROUPS);
 });
 test('notation control changes the shared editor immediately, persists choices, and supports all on/off',async()=>{
@@ -50,4 +50,10 @@ test('each built-in dictionary expands to read-only phrase mappings without chan
 test('built-in inspection includes all phrases, named operators and recognized words without duplicates',async()=>{
  const {builtinEntries}=await import('../src/builtin-dictionaries.js');
  for(const group of NOTATION_GROUPS){const entries=builtinEntries(group,{sin:'\\sin'}),names=entries.map(e=>e.text.toLowerCase());assert.equal(new Set(names).size,names.length,group.id);for(const text of [...group.phrases.map(p=>p.text),...group.words,...group.operators])assert(names.includes(text.toLowerCase()),text);for(const entry of entries)assert.deepEqual(validateLatex(entry.latex),[],entry.text);}
+});
+
+
+test('physics defaults on when legacy settings migrate, and an explicit new choice remains off',()=>{
+ const data=new Map([['lemma.notation-groups.v1',JSON.stringify(['logic','sets'])]]),storage={getItem:key=>data.get(key),setItem:(key,value)=>data.set(key,value)};
+ assert.deepEqual(loadNotationGroups(storage),['logic','sets','physics']);data.set('lemma.notation-groups.v1','[]');assert.deepEqual(loadNotationGroups(storage),[]);saveNotationGroups(storage,['logic']);assert.deepEqual(loadNotationGroups(storage),['logic']);
 });
