@@ -2,6 +2,8 @@
 
 A free, open-source, offline desktop math scratchpad powered by MathLive. Write equations and prose in the same cursor flow, without an account or a network service.
 
+https://lemma.phd
+
 Lemma is an early preview. Development packages use ad hoc signing; the public Mac release pipeline requires Developer ID signing, Apple notarization, stapling, and Gatekeeper verification. See [Release and deployment](docs/RELEASING.md).
 
 ## Run
