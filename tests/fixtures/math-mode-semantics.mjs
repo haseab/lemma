@@ -1,0 +1,27 @@
+// Independent expected structures for Math mode without a leading equation.
+export const mathModeCases=[
+ ['epsilon','\\epsilon'],
+ ['2 is less than x, which is less than 3','2<x<3'],
+ ['ℓ over τ','\\frac{ℓ}{τ}'],
+ ['energy of time','E\\left(t\\right)'],
+ ['force of time','\\vec{F}\\left(t\\right)'],
+ ['kx over t','\\frac{k x}{t}'],
+ ['abcd over t','\\frac{a b c d}{t}'],
+ ['kx squared','k x^2'],
+ ['vector q','\\vec{q}'],
+ ['x is two','x=2'],
+ ['one half','\\frac12'],
+ ['one','1'],
+ ['less than','<'],
+ ['is less than or equal to','\\le'],
+ ['x divided by y plus z','\\frac{x}{y}+z'],
+ ['x plus y divided by z','x+\\frac{y}{z}'],
+ ['x plus y over z','\\frac{x+y}{z}'],
+ ['vector','\\vec{#?}'],
+ ['square root of','\\sqrt{#?}'],
+ ['sin','\\sin'],
+ ['x sub','x_{#?}'],
+ ['sub e','#?_{e}'],
+ ['over','\\frac{#?}{#?}'],
+ ['choose','\\binom{#?}{#?}']
+];

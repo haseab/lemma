@@ -1,7 +1,7 @@
 {
   "name": "lemma-math",
   "productName": "Lemma",
-  "version": "0.3.7",
+  "version": "0.3.8",
   "private": true,
   "description": "A quiet place to think in words and equations",
   "type": "module",
@@ -26,6 +26,21 @@
     "cloudflare:stats-secret": "node --env-file-if-exists=.env.release.local scripts/cloudflare.mjs stats-secret"
   },
   "dependencies": {
+    "@fontsource-variable/caveat": "5.3.0",
+    "@fontsource-variable/dm-sans": "5.3.0",
+    "@fontsource-variable/inter": "5.3.0",
+    "@fontsource-variable/jetbrains-mono": "5.3.0",
+    "@fontsource-variable/lora": "5.3.0",
+    "@fontsource-variable/manrope": "5.3.0",
+    "@fontsource-variable/merriweather": "5.3.0",
+    "@fontsource-variable/nunito-sans": "5.3.0",
+    "@fontsource-variable/roboto-slab": "5.3.0",
+    "@fontsource-variable/source-sans-3": "5.3.1",
+    "@fontsource-variable/source-serif-4": "5.3.1",
+    "@fontsource-variable/work-sans": "5.3.0",
+    "@fontsource/ibm-plex-mono": "5.3.0",
+    "@fontsource/kalam": "5.3.0",
+    "@fontsource/libre-baskerville": "5.3.0",
     "lucide": "0.468.0",
     "mathlive": "0.111.4"
   },

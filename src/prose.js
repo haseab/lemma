@@ -1,4 +1,8 @@
-import {quantifiedInput,relativeComparisonInput,liveFractionInput,livePrefixInput} from './plain-input.js';
+import {PROSE_WORDS} from './input-language.js';
+import {continuesMathOperand} from './math-grammar.js';
+import {mathLeftContext} from './math-context.js';
+import {mathInputOptions} from './math-input-options.js';
+import {quantifiedInput,relativeComparisonInput,liveFractionInput,livePrefixInput,liveMathInput,PLAIN_INPUT_LIMIT} from './plain-input.js';
 import {tokenizeMath,hasPendingSpokenOperator} from './spoken-math.js';
 import {loadDictionaries,validateDictionaries,dictionaryPhrases,validDictionaryPhrase} from './custom-dictionary.js';
 import {MATH_WORDS,namedOperator,vocabulary,phraseAtEnd,symbolPhrase,loadNotationGroups,hasPendingPhrase,normalizeGroups,shortcutEnabled} from './math-words.js';
@@ -9,7 +13,6 @@ import {withEquationTypography} from './formatting.js';
 // newline or an explicit backtick math span. Deletion re-evaluates the run
 // so removing the prose evidence restores math.
 const phraseSources=new WeakMap();
-const SHORT_WORDS=new Set('an as at be by do he if in is it of on or so to us we'.split(' '));
 
 export function looksLikeProse(text,enabled,libraries){
  if(hasPendingSpokenOperator(text,{groups:enabled,libraries}))return false;
@@ -29,7 +32,7 @@ export function looksLikeProse(text,enabled,libraries){
  const words=candidate.match(/[A-Za-z]+/g)||[];
  return words.some(word=>word.length>=3&&!mathWords.has(word.toLowerCase())&&
    !(candidate.endsWith(word)&&[...mathWords].some(math=>math.startsWith(word.toLowerCase()))))||
-  (/\s$/.test(text)&&words.some(word=>SHORT_WORDS.has(word.toLowerCase())));
+  (/\s$/.test(text)&&words.some(word=>PROSE_WORDS.has(word.toLowerCase())));
 }
 
 function unwrapText(latex){
@@ -47,13 +50,17 @@ function unwrapText(latex){
  return out;
 }
 
-function connectedRun(field,whole=false){
+function sourceStyle(atom){return Object.fromEntries(['color','backgroundColor','fontSize','fontSeries','fontShape','fontFamily'].filter(key=>atom?.style?.[key]!==undefined).map(key=>[key,atom.style[key]]));}
+
+function connectedRun(field,whole=false,{includeText=false}={}){
  const caret=field.position,model=field._mathfield?.model;
  let end=caret,start=end,text='',hasMath=false,hasText=false;
  const units=[];
- const styleOf=atom=>Object.fromEntries(['color','backgroundColor','fontSize','fontSeries','fontShape','fontFamily'].filter(key=>atom?.style?.[key]!==undefined).map(key=>[key,atom.style[key]]));
+ const styleOf=sourceStyle;
  const read=(offset,backward)=>{
+  const retained=field.resolveInputSource?.(offset,backward);if(retained)return retained;
   const atom=model?.at(backward?offset:offset+1);
+  if(field.pageInputMode==='math'&&!includeText&&atom?.mode==='text')return null;
   // Explicit math spaces serialize as control spaces and render as NBSP.
   // Match phrases across them exactly as across ordinary typed spaces.
   if(atom?.type==='space'&&['\\ ','\\space'].includes(atom.command)){const begin=backward?offset-1:offset;return {start:begin,end:begin+1,text:' ',math:true,styles:[styleOf(atom)]};}
@@ -64,7 +71,8 @@ function connectedRun(field,whole=false){
    if(candidate.superscript?.length||candidate.subscript?.length)break;
    const finish=model.offsetOf(candidate),begin=candidate.hasChildren?model.offsetOf(candidate.firstChild)-1:finish-1;
    if(backward?finish!==offset:begin!==offset)continue;
-   const known=phraseSources.get(candidate)||symbolPhrase('',candidate);
+   let known=phraseSources.get(candidate)||symbolPhrase('',candidate);
+   if(known?.parsedSource&&field.getValue([begin,finish],'latex')!==known.representation)known=null;
    // Accent source includes its operand; reading only the command's phrase
    // would drop that operand when a later spoken fraction is composed.
    if(candidate.command==='\\vec'){
@@ -89,7 +97,7 @@ function connectedRun(field,whole=false){
    }
    if(!known&&(candidate.hasChildren||!candidate.style?.variant))continue;
    const phrase=known||symbolPhrase(field.getValue([begin,finish],'latex'),candidate);
-   if(phrase)return {start:begin,end:finish,text:phrase.text,math:true,notation:true,styles:[...phrase.text].map(()=>styleOf(candidate))};
+   if(phrase)return {start:begin,end:finish,text:phrase.text,math:true,notation:true,parsedSource:!!phrase.parsedSource,styles:[...phrase.text].map(()=>styleOf(candidate))};
   }
   let operator=atom;
   if(!backward&&atom?.type==='first'&&atom.parent?.command==='\\operatorname')operator=atom.parent;
@@ -109,15 +117,15 @@ function connectedRun(field,whole=false){
  };
  // Traverse recognized word operators as units, but never cross structural
  // math such as fractions, scripts, explicit inline groups, or row boundaries.
- while(start>0&&end-start<4096){const unit=read(start,true);if(!unit)break;units.unshift(unit);start=unit.start;}
- while(whole&&end<field.lastOffset&&end-start<4096){const unit=read(end,false);if(!unit)break;units.push(unit);end=unit.end;}
+ while(start>0&&end-start<PLAIN_INPUT_LIMIT){const unit=read(start,true);if(!unit)break;units.unshift(unit);start=unit.start;}
+ while(whole&&end<field.lastOffset&&end-start<PLAIN_INPUT_LIMIT){const unit=read(end,false);if(!unit)break;units.push(unit);end=unit.end;}
  // Serialized math normally omits spaces between symbols and identifiers.
  // Supply word boundaries when reading multiword notation back as language;
  // keep the padding in its unit so styles and cursor mapping remain aligned.
  for(let i=0;i<units.length;i++){
   const unit=units[i],previous=units[i-1],next=units[i+1];
-  const prepend=unit.notation&&unit.text.includes(' ')&&/[A-Za-z0-9]$/.test(previous?.text||'')&&/^[A-Za-z]/.test(unit.text);
-  const append=(unit.notation&&unit.text.includes(' ')&&/[A-Za-z]$/.test(unit.text)||unit.math&&unit.text===',')&&/^[A-Za-z0-9]/.test(next?.text||'');
+  const prepend=!unit.parsedSource&&unit.notation&&unit.text.includes(' ')&&/[A-Za-z0-9]$/.test(previous?.text||'')&&/^[A-Za-z]/.test(unit.text);
+  const append=(!unit.parsedSource&&unit.notation&&unit.text.includes(' ')&&/[A-Za-z]$/.test(unit.text)||unit.math&&unit.text===',')&&/^[A-Za-z0-9]/.test(next?.text||'');
   if(prepend){unit.text=' '+unit.text;unit.styles.unshift(unit.styles[0]||{});}
   if(append){unit.text+=' ';unit.styles.push(unit.styles.at(-1)||{});}
  }
@@ -147,15 +155,15 @@ function liveStructure(run,options){
 
 // A relation needs an operand, not merely an earlier word in the sentence.
 function phraseHasContext(field,run,phrase){
- if(!phrase?.context)return true;
+ if(field.pageInputMode==='math'||!phrase?.context)return true;
  const text=run.text.trimEnd(),left=text.slice(0,-phrase.text.length).trim();
  if(left){
   // A leading quantifier establishes mathematical context even when its
   // bound objects have an ordinary-language label.
-  if(quantifiedInput(left,{groups:field.notationGroups,libraries:field.customDictionaries,shortcuts:field.getNotationShortcuts?.()}))return true;
+  if(quantifiedInput(left,mathInputOptions(field)))return true;
   if(looksLikeProse(left+' ',field.notationGroups,field.customDictionaries))return false;
   const words=left.match(/[A-Za-z]+/g)||[];
-  return words.every(word=>!SHORT_WORDS.has(word.toLowerCase())&&word!=='I')&&
+  return words.every(word=>!PROSE_WORDS.has(word.toLowerCase())&&word!=='I')&&
    words.every(word=>word.length===1||vocabulary(field.notationGroups,field.customDictionaries).words.has(word.toLowerCase()));
  }
  // Fractions and powers end the connected literal run, but are still operands.
@@ -169,10 +177,30 @@ export function installProseInput(field){
  const sources=new Map();
  try{field.customDictionaries=loadDictionaries(field.ownerDocument.defaultView.localStorage);}catch{field.customDictionaries=[];}
  field.setCustomDictionaries=libraries=>{field.customDictionaries=validateDictionaries(libraries);};
- field.notePhraseSource=phrase=>{const atom=field._mathfield.model.at(field.position);phraseSources.set(atom,phrase);sources.set(atom,phrase);};
+ field.notePhraseSource=phrase=>{const model=field._mathfield.model,atom=model.at(field.position);if(phrase.parsedSource){const begin=phrase.start??(atom.hasChildren?model.offsetOf(atom.firstChild)-1:field.position-1);phrase={...phrase,style:phrase.style||sourceStyle(atom),first:model.at(begin+1),representation:field.getValue([begin,field.position],'latex')};}phraseSources.set(atom,phrase);sources.set(atom,phrase);};
+ field.resolveInputSource=(offset,backward)=>{
+  const model=field._mathfield.model;
+  for(const [atom,phrase]of sources){
+   if(!phrase.parsedSource||!phrase.first)continue;
+   const end=model.offsetOf(atom),start=model.offsetOf(phrase.first)-1;
+   if(start<0||end<start||(backward?end!==offset:start!==offset)||field.getValue([start,end],'latex')!==phrase.representation)continue;
+   return {start,end,text:phrase.text,math:true,notation:true,parsedSource:true,styles:Array.from(phrase.text,()=>phrase.style||{})};
+  }
+  return null;
+ };
+ field.noteParsedSource=(text,start,end,options=mathInputOptions(field))=>{
+  if(/[\r\n]/.test(text))return;
+  // A script/operator fragment attaches to an existing native operand. Its
+  // source range does not own that operand, so do not record a synthetic base.
+  if(options.afterMath&&continuesMathOperand(tokenizeMath(text,options)[0]))return;
+  const parsed=liveMathInput(text,options);
+  if(!parsed)return;
+  const selection=structuredClone(field.selection);field.position=end;
+  field.notePhraseSource({text,start,latex:parsed.latex,parsedSource:true});field.selection=selection;field.sourceInputActive=true;
+ };
  field.readPhraseSources=()=>{
   const model=field._mathfield.model,result=[];
-  for(const [atom,phrase] of sources){const offset=model.offsetOf(atom);if(offset<0||model.at(offset)!==atom){sources.delete(atom);continue;}const begin=atom.hasChildren?model.offsetOf(atom.firstChild)-1:offset-1;result.push({offset,text:phrase.text,latex:phrase.latex,source:field.getValue([begin,offset],'latex'),custom:!!phrase.custom,context:!!phrase.context});}
+  for(const [atom,phrase] of sources){const offset=model.offsetOf(atom);if(offset<0||model.at(offset)!==atom){sources.delete(atom);continue;}const begin=phrase.first?model.offsetOf(phrase.first)-1:atom.hasChildren?model.offsetOf(atom.firstChild)-1:offset-1;if(begin<0){sources.delete(atom);continue;}const source=field.getValue([begin,offset],'latex');if(phrase.parsedSource&&source!==phrase.representation){sources.delete(atom);continue;}result.push({offset,text:phrase.text,latex:phrase.latex,source,custom:!!phrase.custom,context:!!phrase.context,parsedSource:!!phrase.parsedSource,...(phrase.parsedSource?{start:begin}: {})});}
   return result;
  };
  field.restorePhraseSources=entries=>{
@@ -180,14 +208,17 @@ export function installProseInput(field){
   for(const entry of entries||[]){
    const phrase=[...dictionaryPhrases(field.customDictionaries,true),...vocabulary().phrases].find(p=>p.text===entry.text&&p.latex===entry.latex)||
     (entry.latex==='\\forall'&&/^for all values?$/.test(entry.text)?{text:entry.text,latex:entry.latex,context:false}:null)||
+    (entry.parsedSource&&[{}, {preserveSpacing:true,deferPendingWords:true}].some(options=>liveMathInput(entry.text,mathInputOptions(field,options))?.latex===entry.latex)?{text:entry.text,latex:entry.latex,parsedSource:true,representation:entry.source}:null)||
     (entry.custom&&validDictionaryPhrase(entry.text)?{text:entry.text,latex:entry.latex,custom:true,context:entry.context!==false}:null),atom=field._mathfield.model.at(entry.offset);
-   const begin=atom?.hasChildren?field._mathfield.model.offsetOf(atom.firstChild)-1:entry.offset-1;
-   const sourceMatches=entry.source&&field.getValue([begin,entry.offset],'latex')===entry.source;
-   if(phrase&&atom&&(sourceMatches||atom.command===phrase.latex||atom.value===phrase.latex)){phraseSources.set(atom,phrase);sources.set(atom,phrase);}
+   const begin=entry.parsedSource&&Number.isInteger(entry.start)?entry.start:atom?.hasChildren?field._mathfield.model.offsetOf(atom.firstChild)-1:entry.offset-1;
+   const currentSource=atom&&field.getValue([begin,entry.offset],'latex');
+   const canonical=value=>value.replace(/([_^])\{([A-Za-z0-9])\}/g,'$1$2');
+   const sourceMatches=entry.source&&(entry.parsedSource?canonical(currentSource||'')===canonical(entry.source):currentSource===entry.source);
+   if(phrase&&atom&&(sourceMatches||atom.command===phrase.latex||atom.value===phrase.latex)){if(phrase.parsedSource){phrase.representation=currentSource;phrase.style=sourceStyle(atom);phrase.first=field._mathfield.model.at(begin+1);}phraseSources.set(atom,phrase);sources.set(atom,phrase);}
   }
  };
  field.noteQuantifiedSources=(source,start,end)=>{
-  const tokens=tokenizeMath(source,{groups:field.notationGroups,libraries:field.customDictionaries});
+  const tokens=tokenizeMath(source,mathInputOptions(field));
   if(!tokens.some(token=>['quantifier','prefix'].includes(token.type)))return;
   let offset=start+1;const caret=field.position,model=field._mathfield.model;
   for(const token of tokens){
@@ -212,15 +243,26 @@ export function installProseInput(field){
  field.smartMode=false;
  field.resetProseInput=()=>{field.dismissAutomaticConversion?.();explicitMath=false;pendingTemplateSpace=false;updateShortcuts();};
  updateShortcuts();
- field.reassessProseInput=(assessment)=>{
-  if(converting||field.proseSuspended||field.isProseLine?.()||!['auto','math'].includes(field.pageInputMode)||explicitMath||field.mode==='latex'||!field.selectionIsCollapsed)return false;
-  const run=connectedRun(field,true);
+ field.readConnectedInput=options=>connectedRun(field,true,options);
+ field.reassessProseInput=(assessment,inputRun)=>{
+  if(converting||field.readOnly||field.disabled||field.proseSuspended||field.isProseLine?.()||!['auto','math'].includes(field.pageInputMode)||explicitMath||field.mode==='latex'||!inputRun&&!field.selectionIsCollapsed)return false;
+  const run=inputRun||connectedRun(field,true);
   // Use the bulk-input grammar for a whole connected mathematical statement.
   // Only literal non-space text needs replacement; preserve existing math spaces.
-  const options={groups:field.notationGroups,libraries:field.customDictionaries,shortcuts};
-  const assessed=assessment||quantifiedInput(run.text,options)||relativeComparisonInput(run.text,options)||liveStructure(run,options);
+  const options=mathInputOptions(field,{shortcuts});
+  // Native math has no language source to normalize. A real input event can
+  // supply an assessment; background reassessment must preserve its AST.
+  if(!assessment&&options.mode==='math'&&run.hasMath&&!run.hasText&&!run.units.some(unit=>unit.parsedSource))return false;
+  let assessed=assessment;
+  if(!assessed&&options.mode==='math'&&run.text){
+   const first=tokenizeMath(run.text,options)[0];
+   const left=continuesMathOperand(first)&&mathLeftContext(field,run.start,first);
+   assessed=liveMathInput(run.text,left?{...options,leftTokens:left.tokens}:options);
+   if(assessed&&left){run.start=left.start;run.styles=Array.from(run.text,()=>({}));}
+  }
+  assessed=assessed||quantifiedInput(run.text,options)||relativeComparisonInput(run.text,options)||liveStructure(run,options);
   if(assessed)field._mathfield.model.mode='math';
-  if(assessed&&field.position===run.end){
+  if(assessed&&(inputRun||field.position===run.end)){
    const settings=JSON.stringify([field.pageInputMode,field.notationGroups,field.customDictionaries]);
    if(lastConnectedAssessment?.latex===field.value&&lastConnectedAssessment.position===field.position&&lastConnectedAssessment.settings===settings)return false;
    const style=run.styles[0]||{},uniform=run.styles.every(value=>JSON.stringify(value)===JSON.stringify(style));
@@ -233,7 +275,12 @@ export function installProseInput(field){
       const previousLast=field.lastOffset;
       field.executeCommand(['insert',latex,{format:'latex',mode:'math',selectionMode:assessed.pendingPlaceholder?'placeholder':'after'}]);
       const selection=field.selection,end=run.end+field.lastOffset-previousLast;
+      if(assessed.parsedSource){
+       for(let n=run.start+1;n<=end;n++)field._mathfield.model.at(n).isDirty=true;
+       field._mathfield.dirty=true;
+      }
       field.noteQuantifiedSources(run.text,run.start,end);
+      if(assessed.parsedSource){field.position=end;field.notePhraseSource({start:run.start,text:run.text,latex:assessed.latex,parsedSource:true,style});}
       const binder=run.text.trimStart().match(/^(for all values?)\s+[A-Za-z]\b/i);
       if(binder){field.position=run.start+1;field.notePhraseSource({text:binder[1].toLowerCase(),latex:'\\forall',context:false});field.position=end;}
       if(Object.keys(style).length){field.selection={ranges:[[run.start,end]]};field.applyStyle(style,{operation:'set'});field.position=end;}
@@ -250,17 +297,19 @@ export function installProseInput(field){
   return false;
  };
  field.addEventListener('input',event=>{
+  if(/^delete/.test(event.inputType||''))field.resetInputSource?.();
+  if(field.sourceInputActive)return;
   // A whitespace text atom must not switch a forced or explicit math run to prose.
   if((field.pageInputMode==='math'||explicitMath)&&field.mode==='text')field._mathfield.model.mode='math';
-  if(converting||field.proseSuspended||field.isProseLine?.()||!['auto','math'].includes(field.pageInputMode)||field.mode==='latex'||!field.selectionIsCollapsed)return;
+  if(converting||field.readOnly||field.disabled||field.proseSuspended||field.isProseLine?.()||!['auto','math'].includes(field.pageInputMode)||field.mode==='latex'||!field.selectionIsCollapsed)return;
   const forcedMath=field.pageInputMode==='math'||explicitMath;
   const deletion=/^delete/.test(event.inputType||'');
   if(forcedMath&&deletion)return;
   if(event.inputType&&!deletion&&!['insertText','insertFromPaste'].includes(event.inputType))return;
   const run=connectedRun(field,deletion),match=phraseAtEnd(run.text.trimEnd(),field.notationGroups,false,field.customDictionaries);
-  if(!deletion){const options={groups:field.notationGroups,libraries:field.customDictionaries,shortcuts},structure=liveStructure(run,options);if(structure&&field.reassessProseInput(structure))return;}
-  if(!deletion&&relativeComparisonInput(run.text,{groups:field.notationGroups,libraries:field.customDictionaries,shortcuts})&&field.reassessProseInput())return;
-  const quantified=quantifiedInput(run.text,{groups:field.notationGroups,libraries:field.customDictionaries,shortcuts});
+  if(!deletion){const options=mathInputOptions(field,{shortcuts}),structure=liveStructure(run,options);if(structure&&field.reassessProseInput(structure))return;}
+  if(!deletion&&relativeComparisonInput(run.text,mathInputOptions(field,{shortcuts}))&&field.reassessProseInput())return;
+  const quantified=quantifiedInput(run.text,mathInputOptions(field,{shortcuts}));
   if(quantified&&!forcedMath){
    if(!deletion&&field.reassessProseInput())return;
    field._mathfield.model.mode='math';

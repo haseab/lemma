@@ -1,4 +1,6 @@
+import {installTextFonts} from './text-fonts.js';
 import {installSelectionReplacement} from './selection-replacement.js';
+import {installInputSource} from './input-source.js';
 import {installPageLines} from './page-lines.js';
 import {installProseNavigation} from './navigation.js';
 import {insertPageBreak} from './editing.js';
@@ -24,6 +26,8 @@ export function createPageMathfield(container,latex,onInput){
  field.value=latex||'\\displaylines{}';
  // MathLive keyboard configuration requires a connected field.
  container.replaceChildren(field);
+ // Preserve custom text scopes before later editor options trigger reparsing.
+ installTextFonts(field);
  field.position=-1;
  installPageLines(field);
  installAutomaticConversion(field);
@@ -35,6 +39,7 @@ export function createPageMathfield(container,latex,onInput){
  const diagnosePaste=installPasteDiagnostics(field);
  installClipboard(field,message=>field.dispatchEvent(new CustomEvent('editor-error',{detail:message})),diagnosePaste);
  installSelectionReplacement(field);
+ installInputSource(field,container);
  field.addEventListener('input',onInput);
  field.addEventListener('keydown',event=>{
   if(event.key==='Enter'&&!event.altKey&&!event.metaKey&&!event.ctrlKey&&field.mode!=='latex'){event.preventDefault();event.stopImmediatePropagation();insertPageBreak(field);return;}

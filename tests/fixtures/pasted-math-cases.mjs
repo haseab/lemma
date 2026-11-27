@@ -23,7 +23,7 @@ export const pastedMathCases=[
  ...math('development','notation',[
  ['for all z element of real numbers','\\forall z\\in\\mathbb{R}'],['there exists k is in integers','\\exists k\\in\\mathbb{Z}'],
  ['m is at most seventeen','m\\le17'],['a is not equal to b','a\\ne b'],['x is greater than or equal to zero','x\\ge0'],
- ['alpha plus beta equals gamma','\\alpha+\\beta=\\gamma'],['A union B','A\\cup B'],['f maps to g','f\\mapsto g']]),
+ ['alpha plus beta equals gamma','\\alpha+\\beta=\\gamma'],['capital A union capital B','A\\cup B'],['f maps to g','f\\mapsto g']]),
  ...math('development','mixed',[
  ['We have x squared equals sixteen.','\\text{We have }x^{2}=16\\text{.}'],
  ['Let z element of complex numbers.','\\text{Let }z\\in\\mathbb{C}\\text{.}'],
@@ -34,9 +34,10 @@ export const pastedMathCases=[
  'This is in my notebook.','At most seven people arrived.','I am here.','We go on.','The two times we tried were useful.',
  'The power of a good idea is clear.','The sum of our efforts mattered.','A fraction of the audience left.','There is no greater than usual demand.',
  'I like apple pie.','We say sine when discussing notation.','The element of surprise matters.','The vector of change is unclear.',
- 'x plus','start fraction x over y',
+ 'start fraction x over y',
  'The code uses foo_bar as a name.','The cat is in the box.'
  ]),
+ ...math('development','incomplete',[['x plus','x+']]),
  ...math('holdout','arithmetic',[
  ['r squared plus nineteen equals forty four','r^{2}+19=44'],['t to the power of fifteen','t^{15}'],['negative twelve times six','-12\\times6'],
  ['two point seven plus one point three equals four','2.7+1.3=4'],['a subscript twenty one equals b','a_{21}=b']]),
@@ -50,6 +51,7 @@ export const pastedMathCases=[
  ['We know r is at least twenty.','\\text{We know }r\\ge20\\text{.}']]),
  ...prose('holdout',[
  'It is in the folder.','At least twenty guests came.','The root of the problem is unclear.','We need a matrix of responsibilities.',
- 'The product of our work is ready.','I am at home.','y equals','open parenthesis x plus two'
- ])
+ 'The product of our work is ready.','I am at home.','open parenthesis x plus two'
+ ]),
+ ...math('holdout','incomplete',[['y equals','y=']])
 ];

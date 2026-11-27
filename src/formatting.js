@@ -3,7 +3,15 @@ export const FONT_SIZES=[{value:1,label:'10'},{value:2,label:'14'},{value:3,labe
 export function withEquationTypography(field,action,range){
  const offsets=range||field.selection.ranges.flat(),start=Math.min(...offsets),end=Math.max(...offsets),last=field.lastOffset;
  const previous=new Set(Array.from({length:end-start+1},(_,index)=>field._mathfield.model.at(start+index)));
- const result=action();
+ // Custom prose families cannot be rendered as native mathematical variants.
+ // Clear the insertion override before conversion, rather than rendering an
+ // invalid math family once and only cleaning up its atoms afterward.
+ const editor=field._mathfield,family=editor.defaultStyle?.fontFamily,bias=editor.styleBias;
+ const customFamily=family&&!['none','roman','sans-serif','monospace'].includes(family);
+ if(customFamily){editor.defaultStyle={...editor.defaultStyle};delete editor.defaultStyle.fontFamily;editor.styleBias='none';}
+ let result;
+ try{result=action();}finally{if(customFamily&&field.mode==='text'){editor.defaultStyle.fontFamily=family;editor.styleBias=bias;}}
+
  // Conversion creates math atoms. They use the math font even if the source
  // or insertion point uses a prose font. Keep text labels and existing atoms,
  // along with color, size, weight, and explicit mathematical variants.

@@ -1,3 +1,4 @@
+import {mathInputOptions} from './math-input-options.js';
 import {installSelectionEditTip,editRangeAtPoint} from './selection-edit-tip.js';
 import {MathfieldElement,validateLatex} from 'mathlive';
 import {plainInputToLatex,lowercasePastedVariables} from './plain-input.js';
@@ -53,7 +54,7 @@ export function installSelectionReplacement(field){
  function outside(event){if(panel&&!event.composedPath().includes(panel))close(false);}
  function update(event){
   if(!panel)return;
-  const options={mode:field.pageInputMode,groups:field.notationGroups,libraries:field.customDictionaries,shortcuts:field.getNotationShortcuts?.()};
+  const options=mathInputOptions(field);
   let source=input.value;
   if(['insertFromPaste','insertReplacementText'].includes(event?.inputType)){source=lowercasePastedVariables(source,options);input.value=source;}
   try{

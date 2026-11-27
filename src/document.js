@@ -1,3 +1,4 @@
+import {fontById} from './font-catalog.js';
 import {validateHistory} from './history.js';
 import {validateDocument as validateLegacy} from './legacy-document.js';
 export const EMPTY_PAGE='\\displaylines{}';
@@ -12,7 +13,7 @@ function lines(node){if(['paragraph','heading','codeBlock','equation','math'].in
 const demoText=['Every idea starts somewhere.','A few words. A beautiful equation. Space to follow your thinking.','Make yourself at home','Click an equation and start typing. Use / for fractions, ^ for powers, and the arrow keys to move around.','Add math anywhere with ⌘M, or give an equation its own line with ⇧⌘M. Press Escape to return to your writing.'].join('');
 function untouchedDemo(node){let text='',math=[];function scan(n){if(n.type==='text')text+=n.text;if(['math','equation'].includes(n.type))math.push(n.attrs.latex);for(const c of n.content||[])scan(c);}scan(node);return text===demoText&&math.every(s=>!s||s==='e^{i\\pi}+1=0');}
 export function validateDocument(value){
- if(value?.type==='math-page') {if(typeof value.latex!=='string'||value.latex.length>2_000_000)throw Error('Invalid or oversized page');return {type:'math-page',latex:value.latex,mode:['auto','math','text'].includes(value.mode)?value.mode:'auto'};}
+ if(value?.type==='math-page') {if(typeof value.latex!=='string'||value.latex.length>2_000_000)throw Error('Invalid or oversized page');return {type:'math-page',latex:value.latex,mode:['auto','math','text'].includes(value.mode)?value.mode:'auto',...(fontById(value.textFont)?{textFont:value.textFont}:{})};}
  const legacy=validateLegacy(value);
  return {type:'math-page',latex:untouchedDemo(legacy)?EMPTY_PAGE:`\\displaylines{${lines(legacy).join('\\\\')}}`,mode:'auto'};
 }
