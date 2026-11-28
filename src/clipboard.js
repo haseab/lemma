@@ -3,22 +3,54 @@ import {mathLeftContext} from './math-context.js';
 import {tokenizeMath} from './spoken-math.js';
 import {mathInputOptions,PLAIN_INPUT_LIMIT} from './math-input-options.js';
 import {insertPageBreak} from './editing.js';
-import {convertLatexToMathMl,validateLatex} from 'mathlive';
+import {convertLatexToMathMl,convertLatexToMarkup,validateLatex} from 'mathlive';
 import {importLatex,looksLikeLatex,readableSelection,splitDisplayRows} from './formats.js';
 import {plainInputToLatex,liveMathInput,lowercasePastedVariables} from './plain-input.js';
 import {withEquationTypography} from './formatting.js';
 import {insertNumericIndex} from './indices.js';
-export function clipboardPayload(field){
+export function clipboardPayload(field,{format='auto'}={}){
  const latex=field.getValue(field.selection,'latex');
  const mathml=convertLatexToMathMl(latex);
  const text=readableSelection(field),html=text.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  // Rich-text apps can import unknown MathML elements as separate paragraphs.
  // Supply a readable HTML fallback and keep structured math in its own type.
- return {'text/plain':text,'application/x-latex':latex,'text/html':`<span style="white-space:pre-wrap">${html}</span>`,'application/mathml+xml':mathml.startsWith('<math')?mathml:`<math xmlns="http://www.w3.org/1998/Math/MathML">${mathml}</math>`};
+ const math=field.selection.ranges.some(range=>{for(let i=Math.min(...range)+1;i<=Math.max(...range);i++){const atom=field._mathfield.model.at(i);if(atom?.mode==='math'&&atom.type!=='first'&&(atom.value?.trim()||['genfrac','surd','leftright'].includes(atom.type)))return true;}return false;});
+ const plain=format==='latex'?latex:format==='text'||!math?text:`$$${latex}$$`;
+ const encoded=latex.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ return {'text/plain':plain,'application/x-latex':latex,'text/html':`<span data-lemma-latex="${encoded}" style="white-space:pre-wrap">${html}</span>`,'application/mathml+xml':mathml.startsWith('<math')?mathml:`<math xmlns="http://www.w3.org/1998/Math/MathML">${mathml}</math>`};
+}
+export async function copySelection(field,format='latex'){
+ if(field.selectionIsCollapsed)return false;
+ const view=field.ownerDocument.defaultView;
+ if(format==='image'){
+  if(!view.ClipboardItem||!view.navigator.clipboard?.write)throw Error('Image copying is unavailable in this browser.');
+  // Start the clipboard write during the user gesture, before rendering awaits.
+  const markup=convertLatexToMarkup(field.getValue(field.selection,'latex')),style=view.getComputedStyle(field);
+  const image=import('./clipboard-image.js').then(module=>module.formulaPng(markup,{document:field.ownerDocument,fontSize:style.fontSize,color:style.color,fontFamily:style.getPropertyValue('--text-font-family')}));
+  await view.navigator.clipboard.write([new view.ClipboardItem({'image/png':image})]);
+ }else{
+  const payload=clipboardPayload(field,{format});
+  if(format==='latex'&&view.ClipboardItem&&view.navigator.clipboard?.write){
+   await view.navigator.clipboard.write([new view.ClipboardItem({'text/plain':new view.Blob([payload['text/plain']],{type:'text/plain'}),'text/html':new view.Blob([payload['text/html']],{type:'text/html'})})]);
+  }else await view.navigator.clipboard.writeText(payload['text/plain']);
+ }
+ return true;
+}
+export function installCopyMenu(field,onError=()=>{}){
+ const enabled=()=>!field.selectionIsCollapsed;
+ const items=[['latex','Copy as LaTeX'],['image','Copy as image'],['text','Copy raw text']].map(([format,label])=>({id:`selection-copy-${format}`,label,enabled,onMenuSelect:()=>{void copySelection(field,format).catch(error=>onError(error.message||'Could not copy the selection.'));}}));
+ // Keep MathLive's editing and paste actions, replacing its nested copy menu.
+ field.menuItems=[...items,{type:'divider'},...field.menuItems.filter(item=>item.id!=='copy')];
 }
 export function insertClipboard(field,types,{onError=()=>{}}={}){
  if(!field._mathfield?.isSelectionEditable)return false;
- const latex=types['application/x-latex'];let source=latex||types['text/plain'];
+ let latex=types['application/x-latex'];
+ if(!latex&&types['text/html']?.includes('data-lemma-latex=')&&types['text/html'].length<=2_000_000){
+  const html=new field.ownerDocument.defaultView.DOMParser().parseFromString(types['text/html'],'text/html');
+  const node=html.body.children.length===1&&html.body.firstElementChild;
+  if(node?.tagName==='SPAN')latex=node.getAttribute('data-lemma-latex');
+ }
+ let source=latex||types['text/plain'];
  if(!source)return false;
  if(source.length>2_000_000){onError('Pasted content exceeds the page limit.');return true;}
  field.dismissAutomaticConversion?.();
@@ -55,7 +87,7 @@ export function insertClipboard(field,types,{onError=()=>{}}={}){
   }
   let value;
   if(continuation)value=continuation.latex;
-  else if(latex||field.pageInputMode!=='text'&&!field.isProseLine?.()&&looksLikeLatex(source))value=importLatex(source);
+  else if(latex||looksLikeLatex(source))value=importLatex(source);
   else value=plainInputToLatex(source,inputOptions);
   if(validateLatex(value).length)throw Error('Pasted content contains unsupported or incomplete LaTeX. The current selection was preserved.');
   const locked=field.isProseLine?.();
@@ -98,6 +130,7 @@ export function pasteFollowsMath(field,position=Math.min(...field.selection.rang
  return false;
 }
 export function installClipboard(field,onError,diagnose=()=>{}){
+ installCopyMenu(field,onError);
  const sink=field.shadowRoot.querySelector('[part=keyboard-sink]');
  // This is an editable multiline document, including for text-service clients.
  sink.setAttribute('aria-multiline','true');sink.setAttribute('inputmode','text');
@@ -186,7 +219,7 @@ export function installClipboard(field,onError,diagnose=()=>{}){
  field.addEventListener('paste',event=>{
   if(!event.clipboardData)return;
   reset();
-  const types={};for(const type of ['application/x-latex','text/plain'])types[type]=event.clipboardData.getData(type);
+  const types={};for(const type of ['application/x-latex','text/plain','text/html'])types[type]=event.clipboardData.getData(type);
   if(event.composedPath()[0]===sink&&field._mathfield?.isSelectionEditable&&(types['text/plain']||types['application/x-latex'])){
    // Let Chromium complete its native editable paste. Cancelling the paste
    // after inserting only into the math model can look like a failed native

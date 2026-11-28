@@ -8,7 +8,13 @@ for(const key of ['UIEvent','CSSStyleSheet','ShadowRoot','DocumentFragment','HTM
 }
 document.fonts={ready:Promise.resolve(),check:()=>true,load:async()=>[]};
 const {createPageMathfield,MathfieldElement}=await import('../src/page-editor.js');
+const {installPageHistory}=await import('../src/history.js');
+const {insertClipboard,clipboardPayload,copySelection}=await import('../src/clipboard.js');
+const {findMatches,replaceAll}=await import('../src/find.js');
+const {validateNotebook}=await import('../src/document.js');
+const {templates}=await import('../src/templates.js');
 MathfieldElement.fontsDirectory=null;MathfieldElement.soundsDirectory=null;
+await customElements.whenDefined('math-field');
 test('full-page field mounts and edits math, multiple lines, and ordinary text',async(t)=>{
  const container=document.createElement('div');document.body.append(container);
  const field=createPageMathfield(container,'\\displaylines{}',()=>{});
@@ -187,11 +193,38 @@ test('reclassification retains spaces and examines letters to the right of a for
  f.parentElement.remove();g.parentElement.remove();
 });
 
-const {installPageHistory}=await import('../src/history.js');
-const {insertClipboard,clipboardPayload}=await import('../src/clipboard.js');
-const {findMatches,replaceAll}=await import('../src/find.js');
-const {validateNotebook}=await import('../src/document.js');
 const settle=()=>new Promise(r=>setTimeout(r,30));
+test('formula copy has a LaTeX text fallback and restores structured math from text alone',async()=>{
+ const source=exponentScratch('\\frac{-b\\pm\\sqrt{b^2-4ac}}{2a}');source.selection={ranges:[[0,source.lastOffset]]};
+ const original=source.value,payload=clipboardPayload(source);
+ assert.equal(payload['text/plain'],`$$${payload['application/x-latex']}$$`);
+ const target=scratch();installPageHistory(target);target.pageInputMode='text';
+ insertClipboard(target,{'text/plain':payload['text/plain']});await settle();
+ assert.equal(target.value,original);target.pageHistory.undo();assert.equal(target.value,'');target.pageHistory.redo();assert.equal(target.value,original);
+ source.parentElement.remove();target.parentElement.remove();
+});
+test('context menu offers selection copy formats and LaTeX HTML restores even simple math in Text mode',async()=>{
+ const source=exponentScratch('x+1');source.selection={ranges:[[0,source.lastOffset]]};
+ for(const id of ['latex','image','text'])assert(source.menuItems.find(item=>item.id===`selection-copy-${id}`)?.enabled());
+ const original=source.value,payload=clipboardPayload(source,{format:'latex'});
+ assert.equal(payload['text/plain'],'x+1');
+ const target=scratch();target.pageInputMode='text';insertClipboard(target,{'text/plain':payload['text/plain'],'text/html':payload['text/html']});await settle();
+ assert.equal(target.value,original);
+ source.position=-1;for(const id of ['latex','image','text'])assert(!source.menuItems.find(item=>item.id===`selection-copy-${id}`).enabled());
+ assert.equal(await copySelection(source,'latex'),false);
+ source.parentElement.remove();target.parentElement.remove();
+});
+test('copy menu writes raw text or LaTeX without altering the selection',async()=>{
+ const f=exponentScratch('\\frac{1}{2}');f.selection={ranges:[[0,f.lastOffset]]};const selection=JSON.stringify(f.selection),original=f.value;
+ const clipboard=browser.navigator.clipboard,writeText=clipboard.writeText;let copied='';clipboard.writeText=async value=>{copied=value;};
+ try{
+  await copySelection(f,'text');assert.equal(copied,'(1)/(2)');
+  // Exercise the text fallback on platforms without multi-format writing.
+  const Item=browser.ClipboardItem;browser.ClipboardItem=undefined;
+  try{await copySelection(f,'latex');assert.equal(copied,f.getValue(f.selection,'latex'));}finally{browser.ClipboardItem=Item;}
+  assert.equal(f.value,original);assert.equal(JSON.stringify(f.selection),selection);
+ }finally{clipboard.writeText=writeText;f.parentElement.remove();}
+});
 test('page undo persists independently across page switches, serialized restart, and redo',async()=>{
  const f=scratch();const h=installPageHistory(f);await type(f,'pi');await type(f,'e');await settle();
  assert.match(f.value,/\\text\{pie\}/);h.undo();assert.equal(f.value,'pi');h.redo();assert.match(f.value,/pie/);
@@ -219,14 +252,13 @@ test('notebook validation retains valid history and safely drops malformed optio
  const n=validateNotebook({version:2,activeId:'page',documents:[doc]});assert.deepEqual(n.documents[0].history.entries.map(e=>e.latex),doc.history.entries.map(e=>e.latex));
  doc.history.entries[0].latex=42;const recovered=validateNotebook({version:2,documents:[doc]});assert.equal(recovered.documents[0].history,undefined);assert.equal(recovered.documents[0].content.latex,f.value);f.parentElement.remove();
 });
-const {templates}=await import('../src/templates.js');
 test('actual toolbar fraction and power templates support filling, selection replacement, Undo and redo',async()=>{
  const f=scratch();installPageHistory(f);await type(f,'a');f.executeCommand(['insert',templates.fraction,{mode:'math'}]);await settle();assert.match(f.value,/\\frac/);assert.equal(f.errors.length,0);
  await type(f,'b');await settle();assert.match(f.value,/\\frac\{a\}\{b\}/);const filled=f.value;f.pageHistory.undo();assert.notEqual(f.value,filled);f.pageHistory.redo();assert.equal(f.value,filled);
  f.selection={ranges:[[0,f.lastOffset]]};f.executeCommand(['insert','x',{mode:'math'}]);await settle();assert.equal(f.value,'x');f.pageHistory.undo();assert.equal(f.value,filled);f.parentElement.remove();
 });
 test('plain clipboard preserves multiple rows and renders nested fractions and exponents readably',()=>{
- const f=exponentScratch('\\displaylines{\\text{A note}\\\\x^{2}+\\frac{3}{4}}');f.selection={ranges:[[0,f.lastOffset]]};const payload=clipboardPayload(f);
+ const f=exponentScratch('\\displaylines{\\text{A note}\\\\x^{2}+\\frac{3}{4}}');f.selection={ranges:[[0,f.lastOffset]]};const payload=clipboardPayload(f,{format:'text'});
  assert.equal(payload['text/plain'],'A note\nx^(2)+(3)/(4)');assert.match(payload['application/mathml+xml'],/mfrac/);assert.match(payload['text/html'],/A note/);f.parentElement.remove();
 });
 test('multiline paste splits a prose row, preserves the suffix, and undoes as one edit',async()=>{
@@ -238,7 +270,7 @@ test('multiline paste splits a prose row, preserves the suffix, and undoes as on
 });
 test('Enter in the middle of a prose paragraph preserves both halves and is one undoable edit',async()=>{
  const f=exponentScratch('\\text{Start end}');installPageHistory(f);const original=f.value;f.position=6;await type(f,'\n');await settle();
- f.selection={ranges:[[0,f.lastOffset]]};assert.equal(clipboardPayload(f)['text/plain'],'Start \nend');f.pageHistory.undo();assert.equal(f.value,original);f.parentElement.remove();
+ f.selection={ranges:[[0,f.lastOffset]]};assert.equal(clipboardPayload(f,{format:'text'})['text/plain'],'Start \nend');f.pageHistory.undo();assert.equal(f.value,original);f.parentElement.remove();
 });
 test('unsupported LaTeX paste reports a problem without replacing selected work',()=>{
  const f=exponentScratch('x+1');f.selection={ranges:[[0,f.lastOffset]]};const original=f.value;let message='';
@@ -247,7 +279,7 @@ test('unsupported LaTeX paste reports a problem without replacing selected work'
 });
 
 test('clipboard serializes matrix cells with rows and columns intact',()=>{
- const f=exponentScratch('\\begin{pmatrix}a&b\\\\c&d\\end{pmatrix}');f.selection={ranges:[[0,f.lastOffset]]};const payload=clipboardPayload(f);
+ const f=exponentScratch('\\begin{pmatrix}a&b\\\\c&d\\end{pmatrix}');f.selection={ranges:[[0,f.lastOffset]]};const payload=clipboardPayload(f,{format:'text'});
  assert.equal(payload['text/plain'],'a\tb\nc\td');assert.match(payload['application/x-latex'],/pmatrix/);f.parentElement.remove();
 });
 test('persistent history restores formatting exactly and records the final empty state after deletion',async()=>{
@@ -269,7 +301,7 @@ test('Undo and Redo refresh the accessible equation description',()=>{
 
 test('rich-text clipboard fallback keeps a single equation inline and escapes prose markup',()=>{
  const f=exponentScratch('x+1');f.selection={ranges:[[0,f.lastOffset]]};
- let payload=clipboardPayload(f);assert.equal(payload['text/plain'],'x+1');assert.match(payload['text/html'],/>x\+1<\/span>/);assert.doesNotMatch(payload['text/html'],/<mrow|<p|<div/);
+ let payload=clipboardPayload(f,{format:'text'});assert.equal(payload['text/plain'],'x+1');assert.match(payload['text/html'],/>x\+1<\/span>/);assert.doesNotMatch(payload['text/html'],/<mrow|<p|<div/);
  f.setValue('\\text{A < B \\& C}',{mode:'math'});f.selection={ranges:[[0,f.lastOffset]]};payload=clipboardPayload(f);assert.match(payload['text/html'],/A &lt; B &amp; C/);f.parentElement.remove();
 });
 
