@@ -40,7 +40,7 @@ export function exportLatex(latex){
  const body=(lines?`\\begin{gathered}\n${lines[1]}\n\\end{gathered}`:latex).replace(/\\imaginaryI\b/g,'\\mathrm{i}').replace(/\\exponentialE\b/g,'\\mathrm{e}').replace(/\\differentialD\b/g,'\\mathrm{d}').replace(/\\placeholder(?:\[[^\]]*\])?\{[^}]*\}/g,'\\square');
  return `\\documentclass{article}\n\\usepackage{amsmath,amssymb,xcolor}\n\\begin{document}\n\\[\n${body}\n\\]\n\\end{document}\n`;
 }
-export function looksLikeLatex(source){return /\\[a-zA-Z]+|^\s*(?:\$|\\\[|\\\()/.test(source);}
+export function looksLikeLatex(source){return /\\[a-zA-Z]+|^\s*(?:\$|\\\[|\\\()|[_^]\{[^}]*\}/.test(source);}
 export function importPageFile(file){
  if(/\.(?:tex|latex)$/i.test(file.name))return {title:file.name.replace(/\.[^.]+$/,''),content:{type:'math-page',latex:importLatex(file.data),mode:'auto'}};
  return JSON.parse(file.data);

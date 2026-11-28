@@ -61,7 +61,7 @@ Select a part of an expression and press Command-K (Ctrl-K on other platforms) t
 - **Edit → Insert LaTeX** opens an inline source panel. Valid source updates the page immediately and can be undone; incomplete source retains the last valid preview.
 - Import supports equation fragments, common AMS display environments, and simple LaTeX documents containing prose and inline math. This is MathLive-compatible mathematical LaTeX, not a complete TeX implementation. Custom macros, included files and arbitrary package-dependent document commands are not executed or generally supported.
 - **File → Export** offers editable `.lemma`, a standalone LaTeX `.tex` document, PDF, and readable plain text. LaTeX exports declare AMS math and color packages. Editable exports omit local undo history.
-- Copying a selection puts readable plain/HTML text, LaTeX and MathML on the clipboard. Other apps choose the formats they support. **Edit → Copy selection as LaTeX** explicitly copies source.
+- Copying a selection containing math puts LaTeX between `$$` delimiters in the text clipboard, alongside readable HTML, LaTeX and MathML representations. Prose-only selections copy as ordinary text. Pasting copied LaTeX back restores an editable expression, including in Text mode. Right-click a selection for **Copy as LaTeX**, **Copy as image** (transparent PNG), or **Copy raw text**. Image copying requires a browser with clipboard image support. **Edit → Copy selection as LaTeX** also explicitly copies source.
 
 ## Checks
 
